@@ -112,10 +112,12 @@
 - 验证：粒子可见 + 移动 + toggle 正常
 
 ### D1: git init + fork + CI ✅ (2026-08-06)
-- `git init` + 8 commits；**已 push 到 fork main**（force update，本地历史替换 fork 快照）
-- **仓库已改名**：`huahbo/anatomy` → **`huahbo/ocularium`**（fork 关系保留，upstream 原项目不受影响）
-- remote: `fork` = https://github.com/huahbo/ocularium.git
-- `.github/workflows/ci.yml`：npm ci + tsc + build + npm test（push 后 CI 已触发）
+- `git init` + commits 已推送到独立仓库 **`huahbo/ocularium`**（`isFork:false`，已脱离原 fork，旧 fork 已删除）
+- README 致谢原项目 thebuggeddev/anatomy
+- `.github/workflows/ci.yml`：npm ci + tsc + build + npm test（CI 通过）
+- **部署**：Cloudflare Workers → **https://ocularium.huahbo.workers.dev**（wrangler deploy；workers.dev 子域名 `huahbo` 通过 API 注册）
+- 部署配置：`wrangler.jsonc`（name/main/assets/nodejs_compat）；siteUrl 已指向新域名
+- ⚠️ 部署注意事项：nodejs_compat 只在 wrangler.jsonc 配置（vite.config 不重复加，否则产物 flags 重复部署报错）；Cloudflare API token 不落盘（临时环境变量）
 
 ### 品牌改名 Ocularium ✅ (2026-08-06)
 - 左上角 + meta（title/description/OG/Twitter/applicationName）从 "Anatomy Atelier" → **"Ocularium — Anatomy of vision, in 3D"**
