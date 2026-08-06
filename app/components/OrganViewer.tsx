@@ -10,7 +10,6 @@ import {
   ScanEye,
   ScanLine,
   Search,
-  Sparkles,
   X,
 } from "lucide-react";
 import type { Hotspot, Organ } from "../lib/anatomy-data";
@@ -336,13 +335,6 @@ export function OrganViewer({
         <div className="quiz-mode-chip" role="status">
           Interactive quiz — click structures in the 3D model to answer
         </div>
-      )}
-
-      {!chromeHidden && (
-        <aside className="tip-note" aria-label="Viewer instructions">
-          <span><Sparkles size={15} /> Tip</span>
-          <p>Drag to rotate<br />Scroll to zoom<br />Click a dot to learn more</p>
-        </aside>
       )}
 
       {selected && (

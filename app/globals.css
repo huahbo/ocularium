@@ -209,11 +209,12 @@ button:focus-visible, input:focus-visible, canvas:focus-visible {
   font: 500 12px var(--font-serif), serif;
 }
 
-/* Cross-section depth slider (appears while the section tool is active). */
+/* Cross-section depth slider (appears while the section tool is active). It
+   sits on the same baseline as the auto-rotate button. */
 .section-control {
   position: absolute;
   left: 50%;
-  bottom: 64px;
+  bottom: 16px;
   transform: translateX(-50%);
   z-index: 5;
   display: flex;
@@ -423,22 +424,6 @@ button:focus-visible, input:focus-visible, canvas:focus-visible {
 }
 .mode-switch button:hover { color: var(--ink); }
 .mode-switch button.active { background: var(--ink); color: #fffaf3; }
-
-.tip-note {
-  position: absolute;
-  right: 16px;
-  top: 18px;
-  z-index: 2;
-  width: 155px;
-  min-height: 140px;
-  padding: 14px 17px;
-  transform: rotate(-4deg);
-  background: #fff2c9;
-  box-shadow: 0 7px 13px rgba(93,69,43,.13);
-  color: #534a43;
-}
-.tip-note span { display: flex; align-items: center; gap: 4px; color: var(--lavender); font: italic 12px "Comic Sans MS", cursive; }
-.tip-note p { margin: 8px 0 0; font: 500 14px/1.55 var(--font-serif), serif; }
 
 /* Anchor point only — the viewer writes the transform each frame so tracking a
    spinning model costs no React renders. The dots themselves live in the canvas. */
@@ -1081,8 +1066,6 @@ button.organ-card-image:focus-visible { outline: 2px solid #8b6fc4; outline-offs
   .tool-button span { display: none; }
   .auto-rotate { bottom: 82px; right: 10px; }
   .view-caption { left: 12px; bottom: 84px; }
-  .tip-note { width: 130px; min-height: 113px; padding: 11px; }
-  .tip-note p { font-size: 12px; }
   .mode-switch { top: auto; bottom: 84px; left: 12px; right: auto; transform: none; }
   .mode-switch button { height: 24px; padding: 0 10px; font-size: 10px; }
   .callout-body { width: 148px; top: -26px; }
@@ -1095,7 +1078,6 @@ button.organ-card-image:focus-visible { outline: 2px solid #8b6fc4; outline-offs
   .viewer-shell { min-height: 485px; height: 66vh; }
   .structure-rail .structure-group ul { flex-direction: column; }
   .learning-cards { grid-template-columns: 1fr; --art-max: 360px; }
-  .tip-note { display: none; }
   .specimen-stamp { width: 68px; height: 68px; }
 }
 
