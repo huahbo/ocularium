@@ -667,22 +667,23 @@ button.organ-card-image:focus-visible { outline: 2px solid #8b6fc4; outline-offs
 }
 .learning-cards .condition-list .condition-compare:hover { background: rgba(232, 120, 104, .16); }
 
-/* Condition-mode status chip over the 3D viewport. */
+/* Condition-mode status chip, fixed to the viewport top so it stays visible
+   no matter where the page scrolled (the condition list sits at the bottom). */
 .condition-chip {
-  position: absolute;
+  position: fixed;
   left: 50%;
-  top: 16px;
-  z-index: 5;
+  top: 12px;
+  z-index: 30;
   transform: translateX(-50%);
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 7px 15px;
+  gap: 8px;
+  padding: 7px 8px 7px 15px;
   border: 1px solid rgba(208, 90, 70, .4);
   border-radius: 999px;
-  background: rgba(255, 244, 240, .92);
+  background: rgba(255, 244, 240, .94);
   backdrop-filter: blur(18px);
-  box-shadow: 0 10px 24px rgba(75, 54, 40, .12);
+  box-shadow: 0 10px 24px rgba(75, 54, 40, .14);
   font: 600 11px var(--font-serif), serif;
   color: #b5502f;
   white-space: nowrap;
@@ -694,9 +695,21 @@ button.organ-card-image:focus-visible { outline: 2px solid #8b6fc4; outline-offs
   text-transform: uppercase;
   letter-spacing: .1em;
   color: var(--muted);
-  border-left: 1px solid rgba(116, 89, 67, .2);
-  padding-left: 8px;
 }
+.condition-chip-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: 4px;
+  padding: 4px 10px;
+  border: 1px solid rgba(208, 90, 70, .4);
+  border-radius: 999px;
+  background: rgba(232, 120, 104, .12);
+  color: #b5502f;
+  cursor: pointer;
+  font: 600 10.5px var(--font-serif), serif;
+}
+.condition-chip-toggle:hover { background: rgba(232, 120, 104, .2); }
 /* Sits directly under the header like every other card, rather than being
    pushed down by an auto top margin. */
 .system-visual { overflow: hidden; border-radius: 12px; }

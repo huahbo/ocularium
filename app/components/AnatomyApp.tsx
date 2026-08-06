@@ -298,7 +298,10 @@ export function AnatomyApp() {
           {activeCondition && (
             <div className="condition-chip" role="status" aria-live="polite">
               <span>⚠</span> {CONDITION_LABEL[activeCondition]}
-              {conditionPreview && <em>previewing normal state</em>}
+              {conditionPreview && <em>· previewing normal</em>}
+              <button type="button" className="condition-chip-toggle" onClick={previewCondition}>
+                {conditionPreview ? "Show condition" : "Show normal"}
+              </button>
             </div>
           )}
         </div>
