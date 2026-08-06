@@ -1,107 +1,51 @@
-# vinext-starter
+# Ocularium — Anatomy of vision, in 3D
 
-A clean full-stack starter running on
-[vinext](https://github.com/cloudflare/vinext), with optional Cloudflare D1 and
-Drizzle support.
+An interactive 3D anatomy lab for the human eye: peel through 23 layered
+structures, take guided tours and quizzes, compare clinical conditions, and
+watch the aqueous humour flow — all in the browser.
 
-## Prerequisites
+## Features
 
-- Node.js `>=22.13.0`
+- **Layered 3D specimen** — the HRA eye model (23 structures) with per-layer
+  peel, opacity control, and three view modes (Layered / Anatomy / Outflow).
+- **Structure search** — find any structure and fly the camera to it.
+- **Interactive 3D quiz** — 10 Identify/Find questions answered by clicking the
+  model.
+- **Guided anatomy tour** — a 10-stop light-path journey with narration.
+- **Clinical conditions** — material + geometry simulations of cataract,
+  glaucoma, macular degeneration, and retinal detachment, with a one-tap
+  normal/condition A/B compare.
+- **Aqueous flow animation** — the ciliary body → pupil → trabecular meshwork →
+  Schlemm's canal path rendered as moving particles.
+- **Viewer tools** — rotate, zoom, isolate, cross-section (draggable cut +
+  angle), X-Ray see-through, wireframe layers, compare, reset.
+- **Fast** — geometry is baked and Draco-compressed at build time: 1.2s load,
+  2.3 MB model.
 
-## Quick Start
+## Tech stack
+
+- Next.js 16 / React 19 / vinext (Cloudflare Workers)
+- Three.js 0.185 + GSAP
+- Procedural anatomy textures (value noise, 1024px conjunctiva) + photoreal
+  external maps
+- gltf-transform build pipeline (`scripts/bake-eye.cjs`) — UV generation,
+  Loop subdivision, and Draco compression happen at build time
+
+## Development
 
 ```bash
 npm install
-npm run dev
-npm run build
+npm run dev        # local dev server
+npm run build      # production build (type-check + build)
+npm test           # build + SSR render tests
+node scripts/bake-eye.cjs   # regenerate the baked eye GLB (see HANDOFF.md)
 ```
 
-This starter does not use `wrangler.jsonc`.
+## Attribution
 
-## Included Shape
-
-- edit site code under `app/`
-- `.openai/hosting.json` declares optional Sites D1 and R2 bindings
-- `vite.config.ts` simulates declared bindings for local development
-- `db/schema.ts` starts intentionally empty
-- `examples/d1/` contains an optional D1 example surface
-- `drizzle.config.ts` supports local migration generation when needed
-
-## Workspace Auth Headers
-
-OpenAI workspace sites can read the current user's email from
-`oai-authenticated-user-email`.
-
-SIWC-authenticated workspace sites may also receive
-`oai-authenticated-user-full-name` when the user's SIWC profile has a non-empty
-`name` claim. The full-name value is percent-encoded UTF-8 and is accompanied by
-`oai-authenticated-user-full-name-encoding: percent-encoded-utf-8`.
-
-Treat the full name as optional and fall back to email when it is absent:
-
-```tsx
-import { headers } from "next/headers";
-
-export default async function Home() {
-  const requestHeaders = await headers();
-  const email = requestHeaders.get("oai-authenticated-user-email");
-  const encodedFullName = requestHeaders.get("oai-authenticated-user-full-name");
-  const fullName =
-    encodedFullName &&
-    requestHeaders.get("oai-authenticated-user-full-name-encoding") ===
-      "percent-encoded-utf-8"
-      ? decodeURIComponent(encodedFullName)
-      : null;
-
-  const displayName = fullName ?? email;
-  // ...
-}
-```
-
-## Optional Dispatch-Owned ChatGPT Sign-In
-
-Import the ready-to-use helpers from `app/chatgpt-auth.ts` when the site needs
-optional or required ChatGPT sign-in:
-
-- Use `getChatGPTUser()` for optional signed-in UI.
-- Use `requireChatGPTUser(returnTo)` for server-rendered pages that should send
-  anonymous visitors through Sign in with ChatGPT.
-- Use `chatGPTSignInPath(returnTo)` and `chatGPTSignOutPath(returnTo)` for
-  browser links or actions.
-- Pass a same-origin relative `returnTo` path for the destination after sign-in
-  or sign-out. The helper validates and safely encodes it.
-- Mark protected pages with `export const dynamic = "force-dynamic"` because
-  they depend on per-request identity headers.
-
-Dispatch owns `/signin-with-chatgpt`, `/signout-with-chatgpt`, `/callback`, the
-OAuth cookies, and identity header injection. Do not implement app routes for
-those reserved paths. Routes that do not import and call the helper remain
-anonymous-compatible.
-
-SIWC establishes identity only; it does not prove workspace membership. Use the
-Sites hosting platform's access policy controls for workspace-wide restrictions,
-or enforce explicit server-side membership or allowlist checks.
-
-Use SIWC for account pages, user-specific dashboards, saved records, and write
-actions tied to the current ChatGPT user. Leave public content anonymous.
-
-## Useful Commands
-
-- `npm run dev`: start local development
-- `npm run build`: verify the vinext build output
-- `npm test`: build the starter and verify its rendered loading skeleton
-- `npm run db:generate`: generate Drizzle migrations after schema changes
-
-## Learn More
-
-- [vinext Documentation](https://github.com/cloudflare/vinext)
-- [Drizzle D1 Guide](https://orm.drizzle.team/docs/get-started/d1-new)
-
-## 3D Model Attributions
-
-The fine anatomical eye model (23 layered structures) in Anatomy Atelier is
-derived from the **Human Reference Atlas (HRA)** 3D Reference Object Library,
-built from the US National Library of Medicine's Visible Human Project dataset:
+The fine anatomical eye model (23 layered structures) is derived from the
+**Human Reference Atlas (HRA)** 3D Reference Object Library, built from the US
+National Library of Medicine's Visible Human Project dataset:
 
 - **HRA 3D Reference Object Library** — Cyberinfrastructure for Network
   Science Center, Indiana University, funded by the National Institutes of
@@ -111,10 +55,14 @@ built from the US National Library of Medicine's Visible Human Project dataset:
 
 Model-based research aid, not clinical recommendation.
 
-## Texture Attributions
+Texture attributions:
 
-Procedural anatomical textures are complemented by photorealistic references:
-
-- **Sclera** vessels: RoboPoets/digital_human (MIT), https://github.com/RoboPoets/digital_human
+- **Sclera** vessels: RoboPoets/digital_human (MIT),
+  https://github.com/RoboPoets/digital_human
 - **Retina** fundus photograph: Mikael Haggstrom, CC0 public domain,
   https://commons.wikimedia.org/wiki/File:Fundus_photograph_of_normal_right_eye.jpg
+
+## License
+
+Project code and UI: original work. Model and textures remain under their
+respective licenses above. See `HANDOFF.md` for development notes.
