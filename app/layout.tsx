@@ -30,7 +30,7 @@ const siteUrl =
   process.env.NEXT_PUBLIC_SITE_URL ??
   (process.env.VERCEL_PROJECT_PRODUCTION_URL
     ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
-    : "https://anatomy-atelier.openai.site");
+    : "https://ocularium.huahbo.workers.dev");
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
