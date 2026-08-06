@@ -232,9 +232,15 @@ button:focus-visible, input:focus-visible, canvas:focus-visible {
   letter-spacing: .1em;
 }
 .section-control input[type="range"] {
-  width: 160px;
+  width: 130px;
   accent-color: var(--coral);
   cursor: ew-resize;
+}
+.section-control i {
+  width: 1px;
+  height: 20px;
+  background: var(--line);
+  margin: 0 2px;
 }
 
 /* Left rail: the 23-layer structure tree grouped by segment. */

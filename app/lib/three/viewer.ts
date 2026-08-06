@@ -25,6 +25,62 @@ const PLINTH_TOP = PLINTH_Y + 0.17;
 const HOME_CAMERA = { x: 0, y: 1.05, z: 8.2 };
 const HOME_TARGET = { x: 0, y: 0.02, z: 0 };
 
+// ---------------------------------------------------------------------------
+// Condition geometry deformations (FIT_SIZE space, +Z front / -Z back)
+// ---------------------------------------------------------------------------
+
+/** Rhegmatogenous retinal detachment: the inferior neurosensory retina lifts
+ *  away from the pigment epithelium along its radial direction, with a gentle
+ *  corrugation like the real "sail" of a detached retina. */
+function deformRetinaDetachment(mesh: THREE.Mesh) {
+  const attribute = mesh.geometry.getAttribute("position");
+  const count = attribute.count;
+  const p = new THREE.Vector3();
+  for (let i = 0; i < count; i += 1) {
+    p.set(attribute.getX(i), attribute.getY(i), attribute.getZ(i));
+    const radius = Math.max(p.length(), 1e-5);
+    const lower = THREE.MathUtils.clamp(-p.y / radius, 0, 1); // 1 = inferior
+    const peripheral = THREE.MathUtils.clamp((radius - 1.15) / 0.6, 0, 1); // near equator
+    const corrugation = 0.5 + 0.5 * Math.sin(p.x * 4.5);
+    const lift = 0.16 * lower * peripheral * corrugation;
+    p.addScaledVector(p.clone().divideScalar(radius), lift);
+    attribute.setXYZ(i, p.x, p.y, p.z);
+  }
+  attribute.needsUpdate = true;
+  mesh.geometry.computeVertexNormals();
+}
+
+/** Glaucomatous optic-nerve-head cupping: the disc centre sinks toward the
+ *  nerve (−Z), deepest at the cup axis — the classic enlarged cup-to-disc. */
+function deformOpticCup(mesh: THREE.Mesh) {
+  const attribute = mesh.geometry.getAttribute("position");
+  for (let i = 0; i < attribute.count; i += 1) {
+    const x = attribute.getX(i);
+    const y = attribute.getY(i);
+    const z = attribute.getZ(i);
+    const distance = Math.hypot(x, y); // distance from the optic axis
+    const cup = Math.max(0, 1 - distance / 0.45);
+    attribute.setZ(i, z - 0.24 * cup * cup);
+  }
+  attribute.needsUpdate = true;
+  mesh.geometry.computeVertexNormals();
+}
+
+/** Age-related lens swelling in cataract: the lens expands a few percent
+ *  outward from its centre (≈ [0, 0, 0.68]). */
+function deformLensSwelling(mesh: THREE.Mesh) {
+  const attribute = mesh.geometry.getAttribute("position");
+  const centre = new THREE.Vector3(0, 0, 0.68);
+  for (let i = 0; i < attribute.count; i += 1) {
+    const x = attribute.getX(i) - centre.x;
+    const y = attribute.getY(i) - centre.y;
+    const z = attribute.getZ(i) - centre.z;
+    attribute.setXYZ(i, centre.x + x * 1.09, centre.y + y * 1.09, centre.z + z * 1.09);
+  }
+  attribute.needsUpdate = true;
+  mesh.geometry.computeVertexNormals();
+}
+
 export class AnatomyViewer {
   private renderer: THREE.WebGLRenderer;
   private scene = new THREE.Scene();
@@ -253,6 +309,7 @@ export class AnatomyViewer {
     this.xraySnapshot = [];
     this.conditionActive = false;
     this.conditionSnapshot = [];
+    this.conditionGeomSnapshot = [];
     this.stopAqueousFlow();
     this.callbacks.onLoading(true, 0);
 
@@ -677,6 +734,16 @@ export class AnatomyViewer {
     this.dirty = true;
   }
 
+  /** Tilts the active cross-section plane around the vertical (Y) axis, so the
+   *  cut can be swept from the sagittal plane through oblique to frontal. */
+  setCrossSectionAngle(degrees: number) {
+    if (!this.crossSection) return;
+    const rad = THREE.MathUtils.degToRad(THREE.MathUtils.clamp(degrees, -85, 85));
+    // Base normal is (-1, 0, 0); rotate it around Y for an adjustable cut angle.
+    this.clipPlane.normal.set(-Math.cos(rad), 0, Math.sin(rad)).normalize();
+    this.dirty = true;
+  }
+
   toggleLayers() {
     if (!this.organ) return false;
     let enabled = false;
@@ -782,6 +849,15 @@ export class AnatomyViewer {
   }
 
   // ---------------------------------------------------------------- conditions
+  /** Geometry-level deformations for conditions that change shape, not just
+   *  material. Each entry names the mesh to deform; positions are restored
+   *  verbatim on clearCondition. */
+  private static readonly CONDITION_GEOMETRY: Record<string, { meshName: string; deform: (mesh: THREE.Mesh) => void }[]> = {
+    detachment: [{ meshName: "VH_M_retina_L", deform: deformRetinaDetachment }],
+    glaucoma: [{ meshName: "VH_M_optic_disc_L", deform: deformOpticCup }],
+    cataract: [{ meshName: "VH_M_lens_L", deform: deformLensSwelling }],
+  };
+
   /** Material-level simulation of a clinical condition. Effects are teaching
    *  approximations: colour/opacity shifts on the affected structures. */
   private static readonly CONDITION_EFFECTS: Record<string, { layers: Record<string, { opacity?: number; color?: number; emissive?: number; emissiveIntensity?: number }> }> = {
@@ -818,6 +894,8 @@ export class AnatomyViewer {
     mesh: THREE.Mesh; color: THREE.Color | null; opacity: number; transparent: boolean;
     emissive: THREE.Color | null; emissiveIntensity: number;
   }[] = [];
+  /** Original vertex arrays of meshes deformed by a condition, for restore. */
+  private conditionGeomSnapshot: { mesh: THREE.Mesh; positions: Float32Array | null }[] = [];
 
   /** Applies a condition's material simulation (switches if another is on).
    *  Returns true when the condition became active. */
@@ -855,6 +933,19 @@ export class AnatomyViewer {
       }
       material.needsUpdate = true;
     });
+    // Geometry-level deformation (retina lift, optic cup, lens swelling).
+    const geometryJobs = AnatomyViewer.CONDITION_GEOMETRY[conditionId] ?? [];
+    this.conditionGeomSnapshot = [];
+    for (const job of geometryJobs) {
+      const mesh = this.organ.meshes.find(
+        (m) => (m.name || "") === job.meshName || (m.userData.layer || "") === job.meshName,
+      );
+      if (!mesh) continue;
+      const attribute = mesh.geometry.getAttribute("position");
+      if (!attribute) continue;
+      this.conditionGeomSnapshot.push({ mesh, positions: (attribute.array as Float32Array).slice() });
+      job.deform(mesh);
+    }
     this.dirty = true;
     return true;
   }
@@ -876,6 +967,17 @@ export class AnatomyViewer {
       material.needsUpdate = true;
     });
     this.conditionSnapshot = [];
+    // Restore any deformed geometry.
+    this.conditionGeomSnapshot.forEach(({ mesh, positions }) => {
+      if (!positions) return;
+      const attribute = mesh.geometry.getAttribute("position");
+      if (attribute) {
+        (attribute.array as Float32Array).set(positions);
+        attribute.needsUpdate = true;
+      }
+      mesh.geometry.computeVertexNormals();
+    });
+    this.conditionGeomSnapshot = [];
     this.dirty = true;
   }
 

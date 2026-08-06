@@ -101,6 +101,11 @@ export function AnatomyApp() {
     } else {
       viewerApiRef.current?.applyCondition(conditionId);
       setActiveCondition(conditionId);
+      // Fly the camera to the affected structure so the change is visible —
+      // the retina/optic disc sit inside the eye and read as "nothing
+      // happened" from the default front view.
+      const focus = CONDITION_FOCUS[conditionId];
+      if (focus && !quizOpen && !tourOpen) viewerApiRef.current?.focusLayer(focus);
     }
   };
 
@@ -403,6 +408,14 @@ const CONDITION_3D: Record<string, string> = {
   Glaucoma: "glaucoma",
   "Macular degeneration": "amd",
   "Retinal detachment": "detachment",
+};
+
+/** Structure each condition's camera flies to when applied. */
+const CONDITION_FOCUS: Record<string, string> = {
+  cataract: "VH_M_lens_L",
+  glaucoma: "VH_M_optic_disc_L",
+  amd: "VH_M_macula_lutea_L",
+  detachment: "VH_M_retina_L",
 };
 
 function LearningModal({ type, organ, onClose }: { type: Exclude<Modal, null>; organ: Organ; onClose: () => void }) {

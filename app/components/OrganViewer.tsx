@@ -316,7 +316,7 @@ export function OrganViewer({
       )}
 
       {activeTool === "section" && !chromeHidden && (
-        <div className="section-control" aria-label="Cross-section depth">
+        <div className="section-control" aria-label="Cross-section controls">
           <span>Cut</span>
           <input
             type="range"
@@ -327,6 +327,18 @@ export function OrganViewer({
               viewerInstanceRef.current?.setCrossSectionDepth((Number(event.target.value) / 100) * 2.4)
             }
             aria-label="Cross-section depth"
+          />
+          <i />
+          <span>Angle</span>
+          <input
+            type="range"
+            min={-85}
+            max={85}
+            defaultValue={0}
+            onChange={(event) =>
+              viewerInstanceRef.current?.setCrossSectionAngle(Number(event.target.value))
+            }
+            aria-label="Cross-section angle"
           />
         </div>
       )}
