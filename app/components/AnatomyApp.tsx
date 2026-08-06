@@ -63,6 +63,9 @@ export function AnatomyApp() {
   const [searchQuery, setSearchQuery] = useState("");
   /** Clinical condition currently simulated in the 3D viewer (if any). */
   const [activeCondition, setActiveCondition] = useState<string | null>(null);
+  /** When true the condition panel is previewing the normal state (A/B
+   *  compare): the viewer is temporarily cleared but the mode stays on. */
+  const [conditionPreview, setConditionPreview] = useState(false);
   /** Aqueous-humour flow animation running in the viewer (if any). */
   const [flowActive, setFlowActive] = useState(false);
   const [hiddenLayers, setHiddenLayers] = useState<ReadonlySet<string>>(new Set());
@@ -98,14 +101,29 @@ export function AnatomyApp() {
     if (activeCondition === conditionId) {
       viewerApiRef.current?.clearCondition();
       setActiveCondition(null);
+      setConditionPreview(false);
     } else {
       viewerApiRef.current?.applyCondition(conditionId);
       setActiveCondition(conditionId);
+      setConditionPreview(false);
       // Fly the camera to the affected structure so the change is visible —
       // the retina/optic disc sit inside the eye and read as "nothing
       // happened" from the default front view.
       const focus = CONDITION_FOCUS[conditionId];
       if (focus && !quizOpen && !tourOpen) viewerApiRef.current?.focusLayer(focus);
+    }
+  };
+
+  /** A/B compare: temporarily show the normal state without leaving condition
+   *  mode, then apply the condition again. */
+  const previewCondition = () => {
+    if (!activeCondition) return;
+    if (conditionPreview) {
+      viewerApiRef.current?.applyCondition(activeCondition);
+      setConditionPreview(false);
+    } else {
+      viewerApiRef.current?.clearCondition();
+      setConditionPreview(true);
     }
   };
 
@@ -149,9 +167,9 @@ export function AnatomyApp() {
   return (
     <main className="app-shell">
       <header className="topbar">
-        <button className="brand" type="button" onClick={() => setActiveLayer(null)} aria-label="Anatomy Atelier home">
-          <strong>Anatomy Atelier<sup>✦</sup></strong>
-          <em>Learn anatomy like an artist</em>
+        <button className="brand" type="button" onClick={() => setActiveLayer(null)} aria-label="Ocularium home">
+          <strong>Ocularium<sup>✦</sup></strong>
+          <em>Anatomy of vision, in 3D</em>
         </button>
         <nav className="main-nav" aria-label="Primary navigation">
           <button className="active"><BrainCircuit size={17} /> Explore</button>
@@ -277,6 +295,12 @@ export function AnatomyApp() {
           {tourOpen && (
             <TourOverlay organ={organ} viewerRef={viewerApiRef} onClose={() => setTourOpen(false)} />
           )}
+          {activeCondition && (
+            <div className="condition-chip" role="status" aria-live="polite">
+              <span>⚠</span> {CONDITION_LABEL[activeCondition]}
+              {conditionPreview && <em>previewing normal state</em>}
+            </div>
+          )}
         </div>
 
         <aside className="info-panel" ref={contentRef}>
@@ -359,15 +383,28 @@ export function AnatomyApp() {
               return (
                 <li key={condition}>
                   {conditionId ? (
-                    <button
-                      type="button"
-                      className={active ? "active" : ""}
-                      onClick={() => toggleCondition(conditionId)}
-                      aria-pressed={active}
-                    >
-                      {condition}
-                      {active && <em>Viewing in 3D</em>}
-                    </button>
+                    <>
+                      <button
+                        type="button"
+                        className={active ? "active" : ""}
+                        onClick={() => toggleCondition(conditionId)}
+                        aria-pressed={active}
+                      >
+                        {condition}
+                        {active && <em>Viewing in 3D</em>}
+                      </button>
+                      {active && (
+                        <button
+                          type="button"
+                          className="condition-compare"
+                          onClick={previewCondition}
+                          aria-pressed={conditionPreview}
+                        >
+                          {conditionPreview ? <Eye size={12} /> : <EyeOff size={12} />}
+                          {conditionPreview ? "Show condition" : "Show normal"}
+                        </button>
+                      )}
+                    </>
                   ) : (
                     condition
                   )}
@@ -416,6 +453,14 @@ const CONDITION_FOCUS: Record<string, string> = {
   glaucoma: "VH_M_optic_disc_L",
   amd: "VH_M_macula_lutea_L",
   detachment: "VH_M_retina_L",
+};
+
+/** Condition id → display name for the on-screen status chip. */
+const CONDITION_LABEL: Record<string, string> = {
+  cataract: "Cataract",
+  glaucoma: "Glaucoma",
+  amd: "Macular Degeneration",
+  detachment: "Retinal Detachment",
 };
 
 function LearningModal({ type, organ, onClose }: { type: Exclude<Modal, null>; organ: Organ; onClose: () => void }) {

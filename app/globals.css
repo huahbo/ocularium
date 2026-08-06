@@ -653,6 +653,50 @@ button.organ-card-image:focus-visible { outline: 2px solid #8b6fc4; outline-offs
   color: #b5502f;
   margin-left: auto;
 }
+.learning-cards .condition-list .condition-compare {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin: 2px 0 6px 6px;
+  padding: 3px 9px;
+  border: 1px solid rgba(208, 90, 70, .35);
+  border-radius: 999px;
+  background: rgba(232, 120, 104, .08);
+  color: #b5502f;
+  font-size: 10px;
+}
+.learning-cards .condition-list .condition-compare:hover { background: rgba(232, 120, 104, .16); }
+
+/* Condition-mode status chip over the 3D viewport. */
+.condition-chip {
+  position: absolute;
+  left: 50%;
+  top: 16px;
+  z-index: 5;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 15px;
+  border: 1px solid rgba(208, 90, 70, .4);
+  border-radius: 999px;
+  background: rgba(255, 244, 240, .92);
+  backdrop-filter: blur(18px);
+  box-shadow: 0 10px 24px rgba(75, 54, 40, .12);
+  font: 600 11px var(--font-serif), serif;
+  color: #b5502f;
+  white-space: nowrap;
+}
+.condition-chip span { font-size: 13px; }
+.condition-chip em {
+  font-style: normal;
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: .1em;
+  color: var(--muted);
+  border-left: 1px solid rgba(116, 89, 67, .2);
+  padding-left: 8px;
+}
 /* Sits directly under the header like every other card, rather than being
    pushed down by an auto top margin. */
 .system-visual { overflow: hidden; border-radius: 12px; }

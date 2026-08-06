@@ -16,7 +16,7 @@ const OG_IMAGE = {
   url: "/og.jpg",
   width: 1200,
   height: 675,
-  alt: "An anatomical heart specimen floating above a plinth, beside the Anatomy Atelier wordmark",
+  alt: "An eye specimen floating above a plinth, beside the Ocularium wordmark",
 };
 
 /**
@@ -34,11 +34,11 @@ const siteUrl =
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
-  title: "Anatomy Atelier — Learn anatomy like an artist",
+  title: "Ocularium — Anatomy of vision, in 3D",
   description:
-    "Explore medically detailed 3D organs — heart, brain, lungs, liver, kidneys, eye, intestine, pancreas, and skin — through an elegant, interactive anatomy atelier.",
-  applicationName: "Anatomy Atelier",
-  keywords: ["anatomy", "3D anatomy", "human body", "medical education", "interactive learning", "organs"],
+    "Explore the human eye in precision 3D: 23 layered structures, clinical conditions, and the physiology of vision — an elegant, interactive anatomy lab.",
+  applicationName: "Ocularium",
+  keywords: ["eye anatomy", "3D anatomy", "human eye", "ophthalmology", "medical education", "interactive learning", "eye conditions"],
   icons: {
     icon: [
       { url: "/favicon.svg", type: "image/svg+xml" },
@@ -50,15 +50,15 @@ export const metadata: Metadata = {
   },
   openGraph: {
     type: "website",
-    siteName: "Anatomy Atelier",
-    title: "Anatomy Atelier — Learn anatomy like an artist",
-    description: "Learn anatomy like an artist through immersive, medically detailed 3D specimens.",
+    siteName: "Ocularium",
+    title: "Ocularium — Anatomy of vision, in 3D",
+    description: "Explore the human eye in precision 3D: 23 layered structures, clinical conditions, and the physiology of vision.",
     images: [OG_IMAGE],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Anatomy Atelier — Learn anatomy like an artist",
-    description: "Learn anatomy like an artist through immersive, medically detailed 3D specimens.",
+    title: "Ocularium — Anatomy of vision, in 3D",
+    description: "Explore the human eye in precision 3D: 23 layered structures, clinical conditions, and the physiology of vision.",
     images: [OG_IMAGE],
   },
 };

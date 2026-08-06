@@ -896,6 +896,9 @@ export class AnatomyViewer {
   }[] = [];
   /** Original vertex arrays of meshes deformed by a condition, for restore. */
   private conditionGeomSnapshot: { mesh: THREE.Mesh; positions: Float32Array | null }[] = [];
+  /** Camera state captured when a condition is applied, restored on clear so
+   *  the user returns to the pre-condition view. */
+  private conditionCamera: { position: THREE.Vector3; target: THREE.Vector3 } | null = null;
 
   /** Applies a condition's material simulation (switches if another is on).
    *  Returns true when the condition became active. */
@@ -903,7 +906,19 @@ export class AnatomyViewer {
     if (!this.organ || this.quizActive || this.tourActive) return false;
     const effect = AnatomyViewer.CONDITION_EFFECTS[conditionId];
     if (!effect) return false;
-    if (this.conditionActive) this.clearCondition();
+    if (this.conditionActive) {
+      // Switching conditions: restore without flying the camera, so the saved
+      // camera below stays the original pre-condition view.
+      this.conditionActive = false;
+      this.restoreConditionState();
+    }
+    // Remember where the user was looking so clearing returns them there.
+    if (!this.conditionCamera) {
+      this.conditionCamera = {
+        position: this.camera.position.clone(),
+        target: this.controls.target.clone(),
+      };
+    }
     this.conditionActive = true;
     const layerIds = new Set(Object.keys(effect.layers));
     this.conditionSnapshot = this.organ.meshes
@@ -950,10 +965,10 @@ export class AnatomyViewer {
     return true;
   }
 
-  /** Restores the pre-condition material state. */
-  clearCondition() {
-    if (!this.conditionActive) return;
-    this.conditionActive = false;
+  /** Restores the pre-condition material + geometry state, without touching
+   *  the camera. Used both by clearCondition and when switching to another
+   *  condition (so the camera snapshot stays meaningful). */
+  private restoreConditionState() {
     this.conditionSnapshot.forEach((snap) => {
       const material = Array.isArray(snap.mesh.material) ? snap.mesh.material[0] : snap.mesh.material;
       if (!material) return;
@@ -978,6 +993,27 @@ export class AnatomyViewer {
       mesh.geometry.computeVertexNormals();
     });
     this.conditionGeomSnapshot = [];
+  }
+
+  /** Restores the pre-condition state and flies the camera back to where the
+   *  user was looking before the condition was applied. */
+  clearCondition() {
+    if (!this.conditionActive) return;
+    this.conditionActive = false;
+    this.restoreConditionState();
+    // Return to the pre-condition view.
+    if (this.conditionCamera) {
+      const saved = this.conditionCamera;
+      this.conditionCamera = null;
+      this.tween(this.camera.position, {
+        x: saved.position.x, y: saved.position.y, z: saved.position.z,
+        duration: 0.7, ease: "power2.out",
+      });
+      this.tween(this.controls.target, {
+        x: saved.target.x, y: saved.target.y, z: saved.target.z,
+        duration: 0.7, ease: "power2.out",
+      });
+    }
     this.dirty = true;
   }
 
