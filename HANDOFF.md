@@ -88,15 +88,37 @@
 - 验证：过滤精确、飞入生效（视角 diff 22.7）、清空恢复；tsc+build 绿
 - 文件：`AnatomyApp.tsx`（selectStructure + structure-search UI）、`globals.css`（.structure-search 样式）
 
-- A3 结构搜索+相机飞入
-- B3 X-Ray 透视模式（外层半透明）
-- B4 可拖动剖切平面（任意角度+剖面填充）
-- C1 病症模式（白内障/青光眼/黄斑变性/视网膜脱离 程序化模拟）
-- C2 点击标签放大结构+详情展开
-- C3 房水流动动画（GSAP/粒子，契合 Aqueduct 研究）
-- D1 git init + 连接 fork + GitHub Actions CI
-- D2 3D LOD
-- B1 WebGPU 渲染器（低优先级）
+### B3: X-Ray 透视模式 ✅ (2026-08-06)
+- 工具条 "X-Ray" 按钮（ScanEye icon）：`viewer.toggleXRay()` 快照全部层 opacity/transparent → 设 0.12（半透明看内层），关闭恢复；激活时清高亮/选择
+- setOrgan/dispose 重置；验证：半透明生效（亮度 249→219）
+
+### B4: 可拖动剖切平面 ✅ (2026-08-06)
+- Cross-section 激活后显示深度滑块（`.section-control`）：`viewer.setCrossSectionDepth(±2.4)` 实时移动 clipPlane.constant
+- 验证：滑块拖动剖面深度变化（diff 11-18）
+
+### C1: 病症模式 ✅ (2026-08-06)
+- `viewer.applyCondition/clearCondition` + `CONDITION_EFFECTS`：材质级模拟 4 种病症（白内障=晶状体浑浊、青光眼=视盘加深、黄斑变性=黄斑/fovea 暗沉、视网膜脱离=视网膜半透明苍白）
+- UI：底部 "Common conditions" 列表可模拟项变按钮（`CONDITION_3D` 映射），点击应用/切换/恢复，"Viewing in 3D" 标签
+- 验证：应用/切换/清除/不可模拟保持纯文本
+
+### C2: 点击标签放大结构 ✅ (2026-08-06)
+- 热点 callout 加 "Focus in 3D" 按钮：hotspot label → 层 id 匹配 → `focusLayer`（相机飞入）+ `highlightLayer`（高亮）
+- 验证：callout 渲染 + 飞入生效（diff 30）
+
+### C3: 房水流动动画 ✅ (2026-08-06)
+- `viewer.toggleAqueousFlow`：40 粒子沿 CatmullRom 路径（睫状体→瞳孔→前房→小梁网→Schlemm 管）循环动画（~7.7s/圈），Normal 蓝色点（0x4aa8d8），depthTest:false 示意穿透
+- animate 循环集成；quiz/tour 开始自动停止；setOrgan/dispose 清理
+- UI：右栏 Animate 按钮改为触发 3D 流动（active 高亮）
+- 验证：粒子可见 + 移动 + toggle 正常
+
+### D1: git init + fork + CI ✅ (2026-08-06)
+- `git init` + 首次提交（核心代码 + 模型资源，忽略 .omo/.codegraph）；`git remote add fork https://github.com/huahbo/anatomy.git`
+- `.github/workflows/ci.yml`：npm ci + tsc + build + npm test
+- ⚠️ 未 push（网络受限），本地 main 分支 2 commits
+
+### D2: 3D LOD + B1: WebGPU ⏸️ 低优先级评估 (2026-08-06)
+- D2 LOD：模型已烘焙+压缩（1.2s 加载），单标本展示 LOD 意义小，跳过
+- B1 WebGPU：three WebGPURenderer 兼容风险高，当前 WebGL 正常，跳过
 
 ## 4. 验证方法
 
