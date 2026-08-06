@@ -4,6 +4,12 @@ An interactive 3D anatomy lab for the human eye: peel through 23 layered
 structures, take guided tours and quizzes, compare clinical conditions, and
 watch the aqueous humour flow — all in the browser.
 
+> **Acknowledgement** — Ocularium grew out of the
+> [thebuggeddev/anatomy](https://github.com/thebuggeddev/anatomy) 3D anatomy
+> explorer (MIT-licensed Three.js project). We are grateful to the original
+> author for the foundation: this project is a deep rework that narrows the
+> scope to the human eye and adds interactive teaching features on top.
+
 ## Features
 
 - **Layered 3D specimen** — the HRA eye model (23 structures) with per-layer
