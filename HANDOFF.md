@@ -112,9 +112,21 @@
 - 验证：粒子可见 + 移动 + toggle 正常
 
 ### D1: git init + fork + CI ✅ (2026-08-06)
-- `git init` + 首次提交（核心代码 + 模型资源，忽略 .omo/.codegraph）；`git remote add fork https://github.com/huahbo/anatomy.git`
-- `.github/workflows/ci.yml`：npm ci + tsc + build + npm test
-- ⚠️ 未 push（网络受限），本地 main 分支 2 commits
+- `git init` + 8 commits；**已 push 到 fork main**（force update，本地历史替换 fork 快照）
+- **仓库已改名**：`huahbo/anatomy` → **`huahbo/ocularium`**（fork 关系保留，upstream 原项目不受影响）
+- remote: `fork` = https://github.com/huahbo/ocularium.git
+- `.github/workflows/ci.yml`：npm ci + tsc + build + npm test（push 后 CI 已触发）
+
+### 品牌改名 Ocularium ✅ (2026-08-06)
+- 左上角 + meta（title/description/OG/Twitter/applicationName）从 "Anatomy Atelier" → **"Ocularium — Anatomy of vision, in 3D"**
+- 文件：`app/layout.tsx`、`app/components/AnatomyApp.tsx`（brand 按钮 + tagline）
+- 域名 anatomy-atelier.openai.site 未改（部署域名）
+
+### 病症 A/B 对比 + 相机归位 ✅ (2026-08-06)
+- 视口状态条 `condition-chip`：病症激活时顶部显示 "⚠ Condition: X"（预览正常态时追加 "previewing normal state"）
+- AB 对比按钮 `condition-compare`：病症卡 active 项下方 "Show normal / Show condition" 一键切换（同视角对比，chip 保留表示模式）
+- 相机归位：applyCondition 快照相机，clearCondition tween 飞回；切换病症不飞回（相机快照保持）
+- 验证：相机精确回位（diff <0.01），chip/按钮状态流转正常
 
 ### D2: 3D LOD + B1: WebGPU ⏸️ 低优先级评估 (2026-08-06)
 - D2 LOD：模型已烘焙+压缩（1.2s 加载），单标本展示 LOD 意义小，跳过
