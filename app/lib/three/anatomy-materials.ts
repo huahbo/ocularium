@@ -373,25 +373,40 @@ function drawChoroid(ctx: CanvasRenderingContext2D) {
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, TEX_SIZE, TEX_SIZE);
 
-  // Smooth value-noise mottle for the bed — no rectangular stepping, so even
-  // the gaps between vessels read as living tissue, not flat colour.
-  const noise = makeValueNoise(31, 20);
-  const fine = makeValueNoise(63, 60);
+  // Subtle high-frequency mottle (too weak to form visible blobs) plus a
+  // capillary plexus of fine short vessels, so the bed reads as dense living
+  // tissue instead of flat colour or drop-like noise patches.
+  const noise = makeValueNoise(31, 40);
   const image = ctx.getImageData(0, 0, TEX_SIZE, TEX_SIZE);
   const data = image.data;
   for (let p = 0, i = 0; i < data.length; i += 4, p += 1) {
     const u = (p % TEX_SIZE) / TEX_SIZE;
     const v = ((p / TEX_SIZE) | 0) / TEX_SIZE;
-    const k = (noise(u, v) - 0.5) * 26 + (fine(u, v) - 0.5) * 12;
+    const k = (noise(u, v) - 0.5) * 7;
     data[i] = Math.max(0, Math.min(255, data[i] + k));
     data[i + 1] = Math.max(0, Math.min(255, data[i + 1] + k * 0.9));
     data[i + 2] = Math.max(0, Math.min(255, data[i + 2] + k * 0.8));
   }
   ctx.putImageData(image, 0, 0);
 
+  const rand = mulberry32(31);
+
+  // Capillary plexus: many fine short vessels scattered over the whole bed.
+  ctx.strokeStyle = "rgba(30,8,12,0.14)";
+  ctx.lineWidth = 0.6;
+  for (let i = 0; i < 620; i += 1) {
+    const angle = rand() * Math.PI * 2;
+    const r0 = R * (0.08 + rand() * 0.88);
+    const len = R * (0.03 + rand() * 0.07);
+    const a2 = angle + (rand() - 0.5) * 0.9;
+    ctx.beginPath();
+    ctx.moveTo(cx + Math.cos(angle) * r0, cy + Math.sin(angle) * r0);
+    ctx.lineTo(cx + Math.cos(a2) * (r0 + len), cy + Math.sin(a2) * (r0 + len));
+    ctx.stroke();
+  }
+
   // Full-surface arterial tree from the posterior pole (short ciliary
   // arteries): trunks run to the texture edge, branching along the way.
-  const rand = mulberry32(31);
   ctx.lineCap = "round";
   const trunks = 10;
   for (let t = 0; t < trunks; t += 1) {
@@ -401,7 +416,7 @@ function drawChoroid(ctx: CanvasRenderingContext2D) {
       const length = R * span * (0.8 + rand() * 0.2);
       const endR = Math.min(r + length, R * 0.97);
       const curve = (rand() - 0.5) * 0.3;
-      ctx.strokeStyle = `rgba(25,6,10,${0.5 + rand() * 0.3})`;
+      ctx.strokeStyle = `rgba(25,6,10,${0.32 + rand() * 0.2})`;
       ctx.lineWidth = width;
       ctx.beginPath();
       ctx.moveTo(cx + Math.cos(angle) * r, cy + Math.sin(angle) * r);
@@ -419,7 +434,9 @@ function drawChoroid(ctx: CanvasRenderingContext2D) {
         }
       }
     };
-    drawBranch(baseAngle, R * (0.06 + rand() * 0.03), 3.4 + rand() * 1.6, 4);
+    // Staggered origins keep the trunk bundle from clotting into a dark blob
+    // around the posterior pole.
+    drawBranch(baseAngle, R * (0.07 + rand() * 0.06), 2.6 + rand() * 1.2, 4);
   }
 
   // Vortex veins: coarse venous channels returning from the periphery toward
@@ -429,8 +446,8 @@ function drawChoroid(ctx: CanvasRenderingContext2D) {
     const angle = (t / veins) * Math.PI * 2 + rand() * 0.25;
     const fromR = R * (0.92 + rand() * 0.05);
     const toR = R * (0.34 + rand() * 0.12);
-    ctx.strokeStyle = `rgba(18,4,8,${0.4 + rand() * 0.25})`;
-    ctx.lineWidth = 2.6 + rand() * 1.4;
+    ctx.strokeStyle = `rgba(18,4,8,${0.28 + rand() * 0.18})`;
+    ctx.lineWidth = 2.2 + rand() * 1.1;
     ctx.beginPath();
     ctx.moveTo(cx + Math.cos(angle) * fromR, cy + Math.sin(angle) * fromR);
     ctx.quadraticCurveTo(
