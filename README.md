@@ -65,8 +65,8 @@ Texture attributions:
 
 - **Sclera** vessels: RoboPoets/digital_human (MIT),
   https://github.com/RoboPoets/digital_human
-- **Retina** fundus photograph: Mikael Haggstrom, CC0 public domain,
-  https://commons.wikimedia.org/wiki/File:Fundus_photograph_of_normal_right_eye.jpg
+- **Retina** fundus photograph: Augenarztpraxis Dr. med. Stephan Kaut, CC0,
+  Wikimedia Commons (derived from `Fundus-photograph-left.jpg`)
 
 ## License
 
