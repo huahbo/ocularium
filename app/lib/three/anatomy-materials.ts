@@ -392,9 +392,10 @@ function drawChoroid(ctx: CanvasRenderingContext2D) {
   const rand = mulberry32(31);
 
   // Capillary plexus: many fine short vessels scattered over the whole bed.
-  ctx.strokeStyle = "rgba(30,8,12,0.24)";
-  ctx.lineWidth = 0.8;
-  for (let i = 0; i < 700; i += 1) {
+  // Kept light so the network never clumps into solid dark patches.
+  ctx.strokeStyle = "rgba(30,8,12,0.16)";
+  ctx.lineWidth = 0.6;
+  for (let i = 0; i < 520; i += 1) {
     const angle = rand() * Math.PI * 2;
     const r0 = R * (0.08 + rand() * 0.88);
     const len = R * (0.03 + rand() * 0.07);
@@ -410,13 +411,15 @@ function drawChoroid(ctx: CanvasRenderingContext2D) {
   ctx.lineCap = "round";
   const trunks = 10;
   for (let t = 0; t < trunks; t += 1) {
-    const baseAngle = (t / trunks) * Math.PI * 2 + rand() * 0.2;
+    // near-uniform angles: random scatter must stay small so no sector gets
+    // an accidental clump of trunks
+    const baseAngle = (t / trunks) * Math.PI * 2 + rand() * 0.07;
     const drawBranch = (angle: number, r: number, width: number, depth: number) => {
       const span = depth === 4 ? 0.82 : depth === 3 ? 0.34 : depth === 2 ? 0.18 : 0.1;
       const length = R * span * (0.8 + rand() * 0.2);
       const endR = Math.min(r + length, R * 0.97);
       const curve = (rand() - 0.5) * 0.3;
-      ctx.strokeStyle = `rgba(25,6,10,${0.45 + rand() * 0.18})`;
+      ctx.strokeStyle = `rgba(25,6,10,${0.4 + rand() * 0.15})`;
       ctx.lineWidth = width;
       ctx.beginPath();
       ctx.moveTo(cx + Math.cos(angle) * r, cy + Math.sin(angle) * r);
@@ -442,10 +445,10 @@ function drawChoroid(ctx: CanvasRenderingContext2D) {
   // Mid-tier radial vessels filling the gaps between trunks, so no sector of
   // the choroid reads as an empty vessel-free patch (which cross-sections
   // exposed as "water-drop" holes with dark vascular borders).
-  ctx.strokeStyle = "rgba(28,7,11,0.32)";
-  ctx.lineWidth = 1.5;
+  ctx.strokeStyle = "rgba(28,7,11,0.3)";
+  ctx.lineWidth = 1.4;
   for (let t = 0; t < 12; t += 1) {
-    const angle = ((t + 0.5) / 12) * Math.PI * 2 + rand() * 0.12;
+    const angle = ((t + 0.5) / 12) * Math.PI * 2 + rand() * 0.06;
     const fromR = R * (0.12 + rand() * 0.08);
     const toR = R * (0.88 + rand() * 0.09);
     ctx.beginPath();
@@ -461,13 +464,13 @@ function drawChoroid(ctx: CanvasRenderingContext2D) {
 
   // Vortex veins: coarse venous channels returning from the periphery toward
   // the posterior pole, evenly spaced so no side clumps into a dark patch.
-  const veins = 5;
+  const veins = 4;
   for (let t = 0; t < veins; t += 1) {
-    const angle = (t / veins) * Math.PI * 2 + rand() * 0.18;
+    const angle = (t / veins) * Math.PI * 2 + rand() * 0.1;
     const fromR = R * (0.92 + rand() * 0.04);
-    const toR = R * (0.38 + rand() * 0.1);
-    ctx.strokeStyle = `rgba(18,4,8,${0.35 + rand() * 0.15})`;
-    ctx.lineWidth = 2.4 + rand() * 1.0;
+    const toR = R * (0.4 + rand() * 0.1);
+    ctx.strokeStyle = `rgba(18,4,8,${0.28 + rand() * 0.12})`;
+    ctx.lineWidth = 2.2 + rand() * 0.8;
     ctx.beginPath();
     ctx.moveTo(cx + Math.cos(angle) * fromR, cy + Math.sin(angle) * fromR);
     ctx.quadraticCurveTo(
@@ -881,5 +884,12 @@ export function partMaterial(id: AnatomyPartId): THREE.Material {
     metalness: 0,
     side: THREE.DoubleSide,
   });
+  // The choroid's cut surface can fall into light-shadowed normal zones when
+  // cross-sectioned; a faint self-emission keeps it from reading as black
+  // "empty" patches while preserving the vessel contrast.
+  if (id === "choroid") {
+    mat.emissive.setHex(0x33101a);
+    mat.emissiveIntensity = 0.3;
+  }
   return mat;
 }
