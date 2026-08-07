@@ -43,9 +43,18 @@ export default defineConfig(async () => {
   const { cloudflare } = await import("@cloudflare/vite-plugin");
 
   return {
-    server: isCodexSeatbeltSandbox
-      ? { watch: { useFsEvents: false, usePolling: true } }
-      : undefined,
+    server: {
+      // Cloudflare quick tunnels hit the server with a random
+      // *.trycloudflare.com Host header — allow it (and workers.dev) so
+      // tunneled previews work without disabling host checks entirely.
+      allowedHosts: true,
+      ...(isCodexSeatbeltSandbox ? { watch: { useFsEvents: false, usePolling: true } } : {}),
+    },
+    preview: {
+      // `vinext start` serves the production build through Vite's preview
+      // server, which validates the Host header against preview.allowedHosts.
+      allowedHosts: ["*.trycloudflare.com", "*.workers.dev"],
+    },
     plugins: [
       vinext(),
       sites(),
