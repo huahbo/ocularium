@@ -1128,9 +1128,26 @@ button.organ-card-image:focus-visible { outline: 2px solid #8b6fc4; outline-offs
   .tool-button:nth-last-child(1) { border: 0; border-radius: 12px; }
   .tool-button span { display: none; }
   .auto-rotate { bottom: 82px; right: 10px; }
-  .view-caption { left: 12px; bottom: 84px; }
+  .view-caption {
+    left: 50%;
+    right: auto;
+    bottom: auto;
+    top: 10px;
+    transform: translateX(-50%);
+    align-items: center;
+    text-align: center;
+    padding: 3px 11px;
+    border-radius: 999px;
+    background: rgba(253, 250, 244, .72);
+    backdrop-filter: blur(8px);
+    white-space: nowrap;
+  }
   .mode-switch { top: auto; bottom: 84px; left: 12px; right: auto; transform: none; }
   .mode-switch button { height: 24px; padding: 0 10px; font-size: 10px; }
+  /* Compact cross-section slider so it fits narrow screens. */
+  .section-control { padding: 6px 10px; gap: 6px; max-width: calc(100vw - 24px); }
+  .section-control input[type="range"] { width: 74px; }
+  .section-control i { margin: 0 1px; }
   .callout-body { width: 148px; top: -26px; }
   .compare-strip { grid-template-columns: 1fr auto 1fr auto; }
   .compare-strip dl { display: none; }

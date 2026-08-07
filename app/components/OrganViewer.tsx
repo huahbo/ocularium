@@ -408,10 +408,12 @@ export function OrganViewer({
         <span className={`switch ${autoRotate ? "on" : ""}`}><i /></span>
       </button>
 
-      <div className="view-caption">
-        <span>3D specimen · click a dot to explore</span>
-        <strong>{organ.scientificName}</strong>
-      </div>
+      {!chromeHidden && (
+        <div className="view-caption">
+          <span>3D specimen · click a dot to explore</span>
+          <strong>{organ.scientificName}</strong>
+        </div>
+      )}
     </section>
   );
 }

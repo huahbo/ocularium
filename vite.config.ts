@@ -47,7 +47,7 @@ export default defineConfig(async () => {
       // Cloudflare quick tunnels hit the server with a random
       // *.trycloudflare.com Host header — allow it (and workers.dev) so
       // tunneled previews work without disabling host checks entirely.
-      allowedHosts: true,
+      allowedHosts: ["*.trycloudflare.com", "*.workers.dev"],
       ...(isCodexSeatbeltSandbox ? { watch: { useFsEvents: false, usePolling: true } } : {}),
     },
     preview: {

@@ -96,6 +96,14 @@ export function AnatomyApp() {
     setLayerOpacities((prev) => ({ ...prev, [id]: opacity }));
   };
 
+  /** On mobile the action buttons live below the viewer — opening a mode that
+   *  overlays the 3D view must scroll it back into the viewport first. */
+  const scrollToViewer = () => {
+    if (window.innerWidth <= 760) {
+      document.querySelector(".viewer-col")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  };
+
   /** Toggles a 3D-simulatable condition on the viewer. */
   const toggleCondition = (conditionId: string) => {
     if (activeCondition === conditionId) {
@@ -112,6 +120,7 @@ export function AnatomyApp() {
       const focus = CONDITION_FOCUS[conditionId];
       if (focus && !quizOpen && !tourOpen) viewerApiRef.current?.focusLayer(focus);
     }
+    scrollToViewer();
   };
 
   /** A/B compare: temporarily show the normal state without leaving condition
@@ -330,13 +339,13 @@ export function AnatomyApp() {
           <button className="lesson-button" data-reveal onClick={() => setModal("lesson")}>View lesson <ArrowRight size={16} /></button>
           <div className="action-grid" data-reveal>
             <button
-              onClick={() => setFlowActive(viewerApiRef.current?.toggleAqueousFlow() ?? false)}
+              onClick={() => { setFlowActive(viewerApiRef.current?.toggleAqueousFlow() ?? false); scrollToViewer(); }}
               className={flowActive ? "active" : ""}
             >
               <Play size={15} /> Animate
             </button>
-            <button onClick={() => { setQuizOpen(true); setTourOpen(false); }}><CircleHelp size={15} /> Quiz</button>
-            <button onClick={() => { setTourOpen(true); setQuizOpen(false); }}><Map size={15} /> Tour</button>
+            <button onClick={() => { setQuizOpen(true); setTourOpen(false); scrollToViewer(); }}><CircleHelp size={15} /> Quiz</button>
+            <button onClick={() => { setTourOpen(true); setQuizOpen(false); scrollToViewer(); }}><Map size={15} /> Tour</button>
             <button onClick={() => setCompare(!compare)} className={compare ? "active" : ""}><Share2 size={15} /> Compare</button>
           </div>
         </aside>
