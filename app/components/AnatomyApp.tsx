@@ -340,9 +340,6 @@ export function AnatomyApp() {
           <div className="medical-note" data-reveal><Stethoscope size={16} /><p><b>Medical importance</b>{organ.medical}</p></div>
           <div className="fun-note" data-reveal><Sparkles size={15} /><p><b>Did you know</b>{organ.funFact}</p></div>
           <button className="lesson-button" data-reveal onClick={() => setModal("lesson")}>View lesson <ArrowRight size={16} /></button>
-          <button className="glossary-button" data-reveal onClick={() => setGlossaryOpen(true)}>
-            <BookOpen size={15} /> Glossary · 词汇表
-          </button>
           <div className="action-grid" data-reveal>
             <button
               onClick={() => { setFlowActive(viewerApiRef.current?.toggleAqueousFlow() ?? false); scrollToViewer(); }}
@@ -352,6 +349,7 @@ export function AnatomyApp() {
             </button>
             <button onClick={() => { setQuizOpen(true); setTourOpen(false); scrollToViewer(); }}><CircleHelp size={15} /> Quiz</button>
             <button onClick={() => { setTourOpen(true); setQuizOpen(false); scrollToViewer(); }}><Map size={15} /> Tour</button>
+            <button onClick={() => setGlossaryOpen(true)}><BookOpen size={15} /> Glossary</button>
             <button onClick={() => setCompare(!compare)} className={compare ? "active" : ""}><Share2 size={15} /> Compare</button>
           </div>
         </aside>

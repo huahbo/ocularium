@@ -733,25 +733,6 @@ button.organ-card-image:focus-visible { outline: 2px solid #8b6fc4; outline-offs
 @keyframes modal-in { from { opacity: 0; transform: translateY(14px) scale(.98); } }
 .modal-close { position: absolute; top: 13px; right: 13px; width: 34px; height: 34px; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 50%; background: transparent; cursor: pointer; }
 
-/* Glossary button in the info panel, below "View lesson". */
-.glossary-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-  width: 100%;
-  margin-top: 9px;
-  min-height: 38px;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: rgba(255, 255, 255, .55);
-  color: var(--lavender);
-  cursor: pointer;
-  font: 600 13px var(--font-serif), serif;
-  transition: background .15s ease, border-color .15s ease;
-}
-.glossary-button:hover { background: rgba(255, 255, 255, .85); border-color: rgba(123, 111, 170, .4); }
-
 /* Glossary modal: table layout, project palette. */
 .glossary-modal {
   width: min(560px, 100%);
