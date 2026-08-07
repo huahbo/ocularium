@@ -151,7 +151,6 @@ export function OrganViewer({
       });
       viewerInstanceRef.current = viewer;
       if (viewerRef) viewerRef.current = viewer;
-      (window as unknown as { __viewer?: unknown }).__viewer = viewer;
       viewer.setAutoRotate(autoRotateRef.current);
       const current = organRef.current;
       const initialMode: "layers" | "anatomy" | "anterior" = current.procedural ? "layers" : "anatomy";

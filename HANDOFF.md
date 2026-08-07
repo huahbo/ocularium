@@ -72,6 +72,19 @@
 - **回退**：原始 26MB 在 `C:\Users\ADMINI~1\AppData\Local\Temp\opencode\eye-anatomy-original.glb`（换回 + 运行时 baked 检测自动走旧路径，代码兼容）；烘焙 draco 版备份 `eye-anatomy-baked-draco.glb`
 - **踩坑**：① meshopt 量化 position→[-1,1]→细分死循环（勿用）② draco 本地解码+细分>原始传输（烘焙前方案），烘焙后 draco 安全
 
+### 眼底贴图修复（完整历程）✅ (2026-08-07)
+- **问题**：Cross-section 剖切时眼底出现"哑铃形无血管区"（暗红边界+内部空）
+- **排查历程**（6 轮排除）：血管覆盖→噪声→分布→几何孔洞→UV/接缝→光照——均非根因
+- **真正根因**：正方形眼底照片的**四角是圆形眼底视野外的背景**（暗红/黑），被 sphere 映射进球面形成哑铃形区域
+- **最终方案**：换 CC0 左眼眼底照片（Wikimedia `Fundus-photograph-left.jpg`，Augenarztpraxis Dr. med. Stephan Kaut）+ 管线：
+  1. 眼底圆检测（径向亮度剖面，半径≈585px）
+  2. **圆外径向镜像延伸**（眼底边缘纹理向外延续，替代背景）
+  3. **四边无缝渐变混合**（seamless 保持）
+  4. **roll 平移**视盘 → 纹理中心（-Z 缺口锚点，黄斑→颞侧解剖正确）
+- **误判教训**：choroid 加 emissive（851fa93）解决的是光照死区（真问题但非哑铃）；NVIDIA 视觉模型被 prompt 锚定会幻觉（"还有哑铃"），最终以 PIL 硬数据为准
+- 经验沉淀：skill `analyzing-images-with-nvidia-vision`（视觉模型调用法）+ `ocularium-dev-ops` 第 10 节（贴图锚点）
+- 验证：视盘 (0.496,0.501) 居中、四角延伸、seam 2.8/2.2、剖切 99.5% 明亮眼底纹理、无哑铃
+
 ### 结膜材质改进 ✅ (2026-08-06)
 - 问题：Palpebral Conj. 表面可见方块贴图、不够细腻
 - 修复：① 3×2 `fillRect` 矩形噪点 → **双倍频 value noise 连续场**（broad 37px + fine 12px，bilinear-smoothstep，零硬边缘）；② 纹理分辨率 512 → **1024**（`CONJUNCTIVA_SIZE`，眼睑大面积显示防 texel stepping）
