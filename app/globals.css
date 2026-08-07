@@ -732,6 +732,83 @@ button.organ-card-image:focus-visible { outline: 2px solid #8b6fc4; outline-offs
 .learning-modal.wide { width: min(540px, 100%); }
 @keyframes modal-in { from { opacity: 0; transform: translateY(14px) scale(.98); } }
 .modal-close { position: absolute; top: 13px; right: 13px; width: 34px; height: 34px; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 50%; background: transparent; cursor: pointer; }
+
+/* Glossary button in the info panel, below "View lesson". */
+.glossary-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  width: 100%;
+  margin-top: 9px;
+  min-height: 38px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, .55);
+  color: var(--lavender);
+  cursor: pointer;
+  font: 600 13px var(--font-serif), serif;
+  transition: background .15s ease, border-color .15s ease;
+}
+.glossary-button:hover { background: rgba(255, 255, 255, .85); border-color: rgba(123, 111, 170, .4); }
+
+/* Glossary modal: table layout, project palette. */
+.glossary-modal {
+  width: min(560px, 100%);
+  max-height: min(92vh, 900px);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  padding: 30px 30px 26px;
+  border: 1px solid var(--line);
+  border-radius: 26px;
+  background: #fffaf2;
+  box-shadow: 0 30px 90px rgba(63, 42, 28, .24);
+  text-align: center;
+  animation: modal-in .35s cubic-bezier(.2, .85, .3, 1);
+}
+.glossary-mark {
+  display: inline-grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  margin: 0 auto 12px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #8b7fb8, #7b6faa);
+  color: #fffaf3;
+  font: 500 17px var(--font-serif), serif;
+}
+.glossary-modal > em {
+  display: block;
+  text-transform: uppercase;
+  letter-spacing: .14em;
+  font-size: 10px;
+  color: var(--muted);
+}
+.glossary-modal h2 { margin: 5px 0 14px; font: 500 21px var(--font-serif), serif; }
+.glossary-body {
+  flex: 1;
+  overflow-y: auto;
+  scrollbar-width: none;
+  text-align: left;
+  padding: 2px 4px;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+.glossary-group h3 {
+  margin: 14px 0 6px;
+  font: 600 10px var(--font-sans), sans-serif;
+  text-transform: uppercase;
+  letter-spacing: .13em;
+  color: var(--lavender);
+}
+.glossary-group table { width: 100%; border-collapse: collapse; }
+.glossary-group tr { border-bottom: 1px dashed rgba(116, 89, 67, .14); }
+.glossary-group tr:last-child { border-bottom: 0; }
+.glossary-group td { padding: 7px 4px; font: 500 13.5px/1.4 var(--font-serif), serif; }
+.glossary-en { color: #4f4640; }
+.glossary-zh { text-align: right; color: var(--muted); }
+.glossary-modal .lesson-button { margin-top: 16px; }
 .modal-icon { width: 56px; height: 56px; display: grid; place-items: center; margin: 0 auto 12px; border-radius: 50%; background: rgba(237,126,105,.1); color: var(--coral); font: 500 26px var(--font-serif), serif; }
 .learning-modal h2 { margin: 6px 0 12px; font: 500 34px var(--font-serif), serif; }
 .learning-modal > p, .quiz-options p { color: #6e655f; font: 500 15px/1.5 var(--font-serif), serif; }

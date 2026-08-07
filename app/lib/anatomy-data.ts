@@ -382,3 +382,48 @@ export const organById = Object.fromEntries(organs.map((organ) => [organ.id, org
 export function layerLabel(organ: Organ, layerId: string): string {
   return (organ.layers ?? []).find((layer) => layer.id === layerId)?.label ?? layerId;
 }
+
+// ---------------------------------------------------------------------------
+// Glossary (English ↔ 中文) — every 3D eye structure in the project
+// ---------------------------------------------------------------------------
+
+export type GlossaryEntry = {
+  /** English term as shown in the app (layer label / hotspot). */
+  en: string;
+  /** Simplified-Chinese anatomical term. */
+  zh: string;
+  /** Anatomical segment grouping. */
+  group: string;
+};
+
+export const GLOSSARY: GlossaryEntry[] = [
+  // Anterior segment
+  { en: "Cornea", zh: "角膜", group: "Anterior segment" },
+  { en: "Corneoscleral Junction", zh: "角巩膜缘", group: "Anterior segment" },
+  { en: "Iris", zh: "虹膜", group: "Anterior segment" },
+  { en: "Pupil", zh: "瞳孔", group: "Anterior segment" },
+  { en: "Lens", zh: "晶状体", group: "Anterior segment" },
+  { en: "Zonular Fibres", zh: "睫状小带（悬韧带）", group: "Anterior segment" },
+  { en: "Aqueous Humor", zh: "房水", group: "Anterior segment" },
+  { en: "Ciliary Body", zh: "睫状体", group: "Anterior segment" },
+  { en: "Ciliary Muscle", zh: "睫状肌", group: "Anterior segment" },
+  { en: "Ciliary Processes", zh: "睫状突", group: "Anterior segment" },
+  { en: "Trabecular Meshwork", zh: "小梁网", group: "Anterior segment" },
+  { en: "Schlemm's Canal", zh: "施莱姆管（巩膜静脉窦）", group: "Anterior segment" },
+  { en: "Palpebral Conjunctiva (Upper)", zh: "上睑结膜", group: "Anterior segment" },
+  { en: "Palpebral Conjunctiva (Lower)", zh: "下睑结膜", group: "Anterior segment" },
+  { en: "Bulbar Conjunctiva", zh: "球结膜", group: "Anterior segment" },
+  // Middle / vascular
+  { en: "Sclera", zh: "巩膜", group: "Middle / vascular" },
+  { en: "Choroid", zh: "脉络膜", group: "Middle / vascular" },
+  // Posterior segment
+  { en: "Retina", zh: "视网膜", group: "Posterior segment" },
+  { en: "Fovea", zh: "中央凹", group: "Posterior segment" },
+  { en: "Macula Lutea", zh: "黄斑", group: "Posterior segment" },
+  { en: "Optic Disc", zh: "视盘（视神经乳头）", group: "Posterior segment" },
+  { en: "Ora Serrata", zh: "锯齿缘", group: "Posterior segment" },
+  { en: "Vitreous Humor", zh: "玻璃体", group: "Posterior segment" },
+  // Extra landmarks
+  { en: "Optic Nerve", zh: "视神经", group: "Extra landmarks" },
+  { en: "Fovea Centralis", zh: "黄斑中心凹", group: "Extra landmarks" },
+];

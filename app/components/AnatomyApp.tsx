@@ -24,6 +24,7 @@ import {
 import { OrganViewer } from "./OrganViewer";
 import { QuizOverlay } from "./QuizOverlay";
 import { TourOverlay } from "./TourOverlay";
+import { GlossaryModal } from "./GlossaryModal";
 import { organById, type Organ, type OrganLayerGroup } from "../lib/anatomy-data";
 import type { AnatomyViewer } from "../lib/three/viewer";
 
@@ -68,6 +69,8 @@ export function AnatomyApp() {
   const [conditionPreview, setConditionPreview] = useState(false);
   /** Aqueous-humour flow animation running in the viewer (if any). */
   const [flowActive, setFlowActive] = useState(false);
+  /** English ↔ 中文 glossary modal. */
+  const [glossaryOpen, setGlossaryOpen] = useState(false);
   const [hiddenLayers, setHiddenLayers] = useState<ReadonlySet<string>>(new Set());
   // Per-layer opacity overrides, seeded from each layer's defaultOpacity.
   const [layerOpacities, setLayerOpacities] = useState<Record<string, number>>(() => {
@@ -337,6 +340,9 @@ export function AnatomyApp() {
           <div className="medical-note" data-reveal><Stethoscope size={16} /><p><b>Medical importance</b>{organ.medical}</p></div>
           <div className="fun-note" data-reveal><Sparkles size={15} /><p><b>Did you know</b>{organ.funFact}</p></div>
           <button className="lesson-button" data-reveal onClick={() => setModal("lesson")}>View lesson <ArrowRight size={16} /></button>
+          <button className="glossary-button" data-reveal onClick={() => setGlossaryOpen(true)}>
+            <BookOpen size={15} /> Glossary · 词汇表
+          </button>
           <div className="action-grid" data-reveal>
             <button
               onClick={() => { setFlowActive(viewerApiRef.current?.toggleAqueousFlow() ?? false); scrollToViewer(); }}
@@ -441,6 +447,7 @@ export function AnatomyApp() {
       </section>
 
       {modal && <LearningModal type={modal} organ={organ} onClose={() => setModal(null)} />}
+      {glossaryOpen && <GlossaryModal onClose={() => setGlossaryOpen(false)} />}
     </main>
   );
 }
