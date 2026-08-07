@@ -368,8 +368,8 @@ function drawChoroid(ctx: CanvasRenderingContext2D) {
   const R = TEX_SIZE * 0.5;
   // Deep red-brown base with a subtle radial falloff.
   const grad = ctx.createRadialGradient(cx, cy, R * 0.05, cx, cy, R);
-  grad.addColorStop(0, "#8a2e38");
-  grad.addColorStop(1, "#5c1824");
+  grad.addColorStop(0, "#9a3844");
+  grad.addColorStop(1, "#6e2030");
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, TEX_SIZE, TEX_SIZE);
 
@@ -392,9 +392,9 @@ function drawChoroid(ctx: CanvasRenderingContext2D) {
   const rand = mulberry32(31);
 
   // Capillary plexus: many fine short vessels scattered over the whole bed.
-  ctx.strokeStyle = "rgba(30,8,12,0.14)";
-  ctx.lineWidth = 0.6;
-  for (let i = 0; i < 620; i += 1) {
+  ctx.strokeStyle = "rgba(30,8,12,0.1)";
+  ctx.lineWidth = 0.5;
+  for (let i = 0; i < 460; i += 1) {
     const angle = rand() * Math.PI * 2;
     const r0 = R * (0.08 + rand() * 0.88);
     const len = R * (0.03 + rand() * 0.07);
@@ -416,7 +416,7 @@ function drawChoroid(ctx: CanvasRenderingContext2D) {
       const length = R * span * (0.8 + rand() * 0.2);
       const endR = Math.min(r + length, R * 0.97);
       const curve = (rand() - 0.5) * 0.3;
-      ctx.strokeStyle = `rgba(25,6,10,${0.32 + rand() * 0.2})`;
+      ctx.strokeStyle = `rgba(25,6,10,${0.26 + rand() * 0.16})`;
       ctx.lineWidth = width;
       ctx.beginPath();
       ctx.moveTo(cx + Math.cos(angle) * r, cy + Math.sin(angle) * r);
@@ -440,14 +440,14 @@ function drawChoroid(ctx: CanvasRenderingContext2D) {
   }
 
   // Vortex veins: coarse venous channels returning from the periphery toward
-  // the posterior pole, as in the real choroid.
-  const veins = 7;
+  // the posterior pole, evenly spaced so no side clumps into a dark patch.
+  const veins = 5;
   for (let t = 0; t < veins; t += 1) {
-    const angle = (t / veins) * Math.PI * 2 + rand() * 0.25;
-    const fromR = R * (0.92 + rand() * 0.05);
-    const toR = R * (0.34 + rand() * 0.12);
-    ctx.strokeStyle = `rgba(18,4,8,${0.28 + rand() * 0.18})`;
-    ctx.lineWidth = 2.2 + rand() * 1.1;
+    const angle = (t / veins) * Math.PI * 2 + rand() * 0.18;
+    const fromR = R * (0.92 + rand() * 0.04);
+    const toR = R * (0.38 + rand() * 0.1);
+    ctx.strokeStyle = `rgba(18,4,8,${0.22 + rand() * 0.14})`;
+    ctx.lineWidth = 2.0 + rand() * 0.9;
     ctx.beginPath();
     ctx.moveTo(cx + Math.cos(angle) * fromR, cy + Math.sin(angle) * fromR);
     ctx.quadraticCurveTo(
