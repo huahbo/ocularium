@@ -392,8 +392,8 @@ function drawChoroid(ctx: CanvasRenderingContext2D) {
   const rand = mulberry32(31);
 
   // Capillary plexus: many fine short vessels scattered over the whole bed.
-  ctx.strokeStyle = "rgba(30,8,12,0.16)";
-  ctx.lineWidth = 0.55;
+  ctx.strokeStyle = "rgba(30,8,12,0.24)";
+  ctx.lineWidth = 0.8;
   for (let i = 0; i < 700; i += 1) {
     const angle = rand() * Math.PI * 2;
     const r0 = R * (0.08 + rand() * 0.88);
@@ -416,7 +416,7 @@ function drawChoroid(ctx: CanvasRenderingContext2D) {
       const length = R * span * (0.8 + rand() * 0.2);
       const endR = Math.min(r + length, R * 0.97);
       const curve = (rand() - 0.5) * 0.3;
-      ctx.strokeStyle = `rgba(25,6,10,${0.26 + rand() * 0.16})`;
+      ctx.strokeStyle = `rgba(25,6,10,${0.45 + rand() * 0.18})`;
       ctx.lineWidth = width;
       ctx.beginPath();
       ctx.moveTo(cx + Math.cos(angle) * r, cy + Math.sin(angle) * r);
@@ -442,8 +442,8 @@ function drawChoroid(ctx: CanvasRenderingContext2D) {
   // Mid-tier radial vessels filling the gaps between trunks, so no sector of
   // the choroid reads as an empty vessel-free patch (which cross-sections
   // exposed as "water-drop" holes with dark vascular borders).
-  ctx.strokeStyle = "rgba(28,7,11,0.2)";
-  ctx.lineWidth = 1.2;
+  ctx.strokeStyle = "rgba(28,7,11,0.32)";
+  ctx.lineWidth = 1.5;
   for (let t = 0; t < 12; t += 1) {
     const angle = ((t + 0.5) / 12) * Math.PI * 2 + rand() * 0.12;
     const fromR = R * (0.12 + rand() * 0.08);
@@ -466,8 +466,8 @@ function drawChoroid(ctx: CanvasRenderingContext2D) {
     const angle = (t / veins) * Math.PI * 2 + rand() * 0.18;
     const fromR = R * (0.92 + rand() * 0.04);
     const toR = R * (0.38 + rand() * 0.1);
-    ctx.strokeStyle = `rgba(18,4,8,${0.22 + rand() * 0.14})`;
-    ctx.lineWidth = 2.0 + rand() * 0.9;
+    ctx.strokeStyle = `rgba(18,4,8,${0.35 + rand() * 0.15})`;
+    ctx.lineWidth = 2.4 + rand() * 1.0;
     ctx.beginPath();
     ctx.moveTo(cx + Math.cos(angle) * fromR, cy + Math.sin(angle) * fromR);
     ctx.quadraticCurveTo(
@@ -479,6 +479,26 @@ function drawChoroid(ctx: CanvasRenderingContext2D) {
     ctx.stroke();
   }
   ctx.lineCap = "butt";
+
+  // Edge feathering: fade vessel darkness toward the texture borders so the
+  // sphere mapping's seams and poles never show abruptly-cut vessels — smooth
+  // transitions even where the topology converges.
+  const final = ctx.getImageData(0, 0, TEX_SIZE, TEX_SIZE);
+  const fdata = final.data;
+  const EDGE_FADE = 14;
+  for (let y = 0; y < TEX_SIZE; y += 1) {
+    for (let x = 0; x < TEX_SIZE; x += 1) {
+      const dEdge = Math.min(x, y, TEX_SIZE - 1 - x, TEX_SIZE - 1 - y);
+      if (dEdge >= EDGE_FADE) continue;
+      const t = dEdge / EDGE_FADE; // 0 at edge → 1 inside
+      const i = (y * TEX_SIZE + x) * 4;
+      const lift = (1 - t) * 0.55;
+      fdata[i] = fdata[i] + (255 - fdata[i]) * lift * 0.5;
+      fdata[i + 1] = fdata[i + 1] + (255 - fdata[i + 1]) * lift * 0.5;
+      fdata[i + 2] = fdata[i + 2] + (255 - fdata[i + 2]) * lift * 0.5;
+    }
+  }
+  ctx.putImageData(final, 0, 0);
 }
 
 /** Retina: soft pink bed with a sparse, gently branching vascular tree. */
