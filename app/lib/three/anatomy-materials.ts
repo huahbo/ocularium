@@ -358,53 +358,90 @@ function drawIris(
   ctx.stroke();
 }
 
-/** Choroid: a deep red-brown vascular bed with vessels radiating from the
- *  posterior pole (texture centre) outwards, branching like the short ciliary
- *  arteries — not random scribbles. */
+/** Choroid: a deep red-brown vascular bed. The arterial tree radiates from the
+ *  posterior pole (texture centre) and now reaches the texture edge — the
+ *  choroid lines the whole inner sclera, so cross-sections at the equator must
+ *  show vessels too. Vortex veins return coarsely from the periphery. */
 function drawChoroid(ctx: CanvasRenderingContext2D) {
   const cx = TEX_SIZE / 2;
   const cy = TEX_SIZE / 2;
+  const R = TEX_SIZE * 0.5;
   // Deep red-brown base with a subtle radial falloff.
-  const grad = ctx.createRadialGradient(cx, cy, TEX_SIZE * 0.05, cx, cy, TEX_SIZE * 0.5);
+  const grad = ctx.createRadialGradient(cx, cy, R * 0.05, cx, cy, R);
   grad.addColorStop(0, "#8a2e38");
   grad.addColorStop(1, "#5c1824");
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, TEX_SIZE, TEX_SIZE);
 
-  // Radial vessel tree: N main trunks from the centre, each branching 2–3
-  // times and thinning toward the periphery, like the choroidal arteries.
-  const trunks = 9;
+  // Smooth value-noise mottle for the bed — no rectangular stepping, so even
+  // the gaps between vessels read as living tissue, not flat colour.
+  const noise = makeValueNoise(31, 20);
+  const fine = makeValueNoise(63, 60);
+  const image = ctx.getImageData(0, 0, TEX_SIZE, TEX_SIZE);
+  const data = image.data;
+  for (let p = 0, i = 0; i < data.length; i += 4, p += 1) {
+    const u = (p % TEX_SIZE) / TEX_SIZE;
+    const v = ((p / TEX_SIZE) | 0) / TEX_SIZE;
+    const k = (noise(u, v) - 0.5) * 26 + (fine(u, v) - 0.5) * 12;
+    data[i] = Math.max(0, Math.min(255, data[i] + k));
+    data[i + 1] = Math.max(0, Math.min(255, data[i + 1] + k * 0.9));
+    data[i + 2] = Math.max(0, Math.min(255, data[i + 2] + k * 0.8));
+  }
+  ctx.putImageData(image, 0, 0);
+
+  // Full-surface arterial tree from the posterior pole (short ciliary
+  // arteries): trunks run to the texture edge, branching along the way.
   const rand = mulberry32(31);
+  ctx.lineCap = "round";
+  const trunks = 10;
   for (let t = 0; t < trunks; t += 1) {
-    const baseAngle = (t / trunks) * Math.PI * 2 + rand() * 0.22;
-    const startR = TEX_SIZE * (0.04 + rand() * 0.03);
-    // recursive-ish branch drawing (bounded depth)
+    const baseAngle = (t / trunks) * Math.PI * 2 + rand() * 0.2;
     const drawBranch = (angle: number, r: number, width: number, depth: number) => {
-      const length = TEX_SIZE * (0.12 + rand() * 0.1);
-      const endR = Math.min(r + length, TEX_SIZE * 0.52);
-      ctx.strokeStyle = `rgba(25,6,10,${0.55 + rand() * 0.25})`;
+      const span = depth === 4 ? 0.82 : depth === 3 ? 0.34 : depth === 2 ? 0.18 : 0.1;
+      const length = R * span * (0.8 + rand() * 0.2);
+      const endR = Math.min(r + length, R * 0.97);
+      const curve = (rand() - 0.5) * 0.3;
+      ctx.strokeStyle = `rgba(25,6,10,${0.5 + rand() * 0.3})`;
       ctx.lineWidth = width;
       ctx.beginPath();
       ctx.moveTo(cx + Math.cos(angle) * r, cy + Math.sin(angle) * r);
-      ctx.lineTo(cx + Math.cos(angle) * endR, cy + Math.sin(angle) * endR);
+      ctx.quadraticCurveTo(
+        cx + Math.cos(angle + curve) * (r + length * 0.5),
+        cy + Math.sin(angle + curve) * (r + length * 0.5),
+        cx + Math.cos(angle + curve * 0.4) * endR,
+        cy + Math.sin(angle + curve * 0.4) * endR,
+      );
       ctx.stroke();
-      if (depth > 0 && endR < TEX_SIZE * 0.48) {
-        const split = rand() < 0.8 ? 2 : 3;
-        for (let b = 0; b < split; b += 1) {
-          drawBranch(angle + (b === 0 ? -0.22 : 0.22) + (rand() - 0.5) * 0.2, endR, width * 0.55, depth - 1);
+      if (depth > 0 && endR < R * 0.95) {
+        const splits = rand() < 0.75 ? 2 : 3;
+        for (let b = 0; b < splits; b += 1) {
+          drawBranch(angle + (b === 0 ? -0.24 : 0.24) + (rand() - 0.5) * 0.24, endR, width * 0.62, depth - 1);
         }
       }
     };
-    drawBranch(baseAngle, startR, 3.2 + rand() * 1.4, 3);
+    drawBranch(baseAngle, R * (0.06 + rand() * 0.03), 3.4 + rand() * 1.6, 4);
   }
 
-  // Faint overall mottle so the bed isn't perfectly flat between trunks.
-  ctx.globalAlpha = 0.12;
-  for (let i = 0; i < 900; i += 1) {
-    ctx.fillStyle = rand() < 0.5 ? "#4a1018" : "#a04050";
-    ctx.fillRect(rand() * TEX_SIZE, rand() * TEX_SIZE, 2, 2);
+  // Vortex veins: coarse venous channels returning from the periphery toward
+  // the posterior pole, as in the real choroid.
+  const veins = 7;
+  for (let t = 0; t < veins; t += 1) {
+    const angle = (t / veins) * Math.PI * 2 + rand() * 0.25;
+    const fromR = R * (0.92 + rand() * 0.05);
+    const toR = R * (0.34 + rand() * 0.12);
+    ctx.strokeStyle = `rgba(18,4,8,${0.4 + rand() * 0.25})`;
+    ctx.lineWidth = 2.6 + rand() * 1.4;
+    ctx.beginPath();
+    ctx.moveTo(cx + Math.cos(angle) * fromR, cy + Math.sin(angle) * fromR);
+    ctx.quadraticCurveTo(
+      cx + Math.cos(angle + 0.35) * R * 0.66,
+      cy + Math.sin(angle + 0.35) * R * 0.66,
+      cx + Math.cos(angle + 0.15) * toR,
+      cy + Math.sin(angle + 0.15) * toR,
+    );
+    ctx.stroke();
   }
-  ctx.globalAlpha = 1;
+  ctx.lineCap = "butt";
 }
 
 /** Retina: soft pink bed with a sparse, gently branching vascular tree. */
