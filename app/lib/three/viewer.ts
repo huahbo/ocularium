@@ -367,7 +367,12 @@ export class AnatomyViewer {
     this.procedural = Boolean(procedural);
     if (!procedural) {
       this.applyAnatomyMaterials(organ);
-      this.buildCollectorChannels(organ);
+      // Collector channels are decorative — never let them break the load.
+      try {
+        this.buildCollectorChannels(organ);
+      } catch (error) {
+        console.warn("collector channels skipped:", error);
+      }
     }
     organ.pivot.scale.setScalar(1);
     organ.pivot.position.set(0, 0, 0);
@@ -478,7 +483,8 @@ export class AnatomyViewer {
     pick(12, 78, 6, 21);   // superonasal: 6
     pick(192, 258, 6, 41); // inferotemporal: 6
     pick(102, 168, 6, 61); // superotemporal: 6
-    if (positions.length / 3 !== 28 * 7) throw new Error("CC line count mismatch");
+    // getPoints(n) returns n+1 points (inclusive of both ends).
+    if (positions.length / 3 !== 28 * 8) throw new Error("CC line count mismatch");
     const geo = new THREE.BufferGeometry();
     geo.setAttribute("position", new THREE.Float32BufferAttribute(new Float32Array(positions), 3));
     const line = new THREE.Line(geo, new THREE.LineBasicMaterial({ color: 0xd9c27a, transparent: true, opacity: 0.9 }));
