@@ -150,6 +150,7 @@ export const organs: Organ[] = [
       { id: "VH_M_optic_disc_L", label: "Optic Disc", color: "#8c8073" },
       { id: "VH_M_ora_serrata_of_retina_L", label: "Ora Serrata", color: "#8c666b" },
       { id: "VH_M_vitreous_humor_L", label: "Vitreous Humor", color: "#99b3cc", transparent: true, defaultOpacity: 0.5 },
+      { id: "VH_M_collector_channel_L", label: "Collector Channels", color: "#d9c27a", transparent: true, defaultOpacity: 0.85 },
     ],
     layerGroups: [
       {
@@ -166,8 +167,9 @@ export const organs: Organ[] = [
           { id: "VH_M_ciliary_muscle_L", label: "Ciliary Muscle", color: "#99664a" },
           { id: "VH_M_ciliary_processes_L", label: "Ciliary Processes", color: "#854d38" },
           { id: "VH_M_trabecular_meshwork_L", label: "Trabecular Meshwork", color: "#c7a059" },
-          { id: "VH_M_schlemms_canal_L", label: "Schlemm's Canal", color: "#669980" },
-          { id: "VH_M_palpebral_conjunctiva_of_upper_eyelid_L", label: "Palpebral Conj. (Upper)", color: "#d9a69a" },
+      { id: "VH_M_schlemms_canal_L", label: "Schlemm's Canal", color: "#669980" },
+      { id: "VH_M_collector_channel_L", label: "Collector Channels", color: "#d9c27a", transparent: true, defaultOpacity: 0.85 },
+      { id: "VH_M_palpebral_conjunctiva_of_upper_eyelid_L", label: "Palpebral Conj. (Upper)", color: "#d9a69a" },
           { id: "VH_M_palpebral_conjunctiva_of_lower_eyelid_L", label: "Palpebral Conj. (Lower)", color: "#d9a69a" },
           { id: "VH_M_bulbar_conjunctiva_L", label: "Bulbar Conjunctiva", color: "#ccb2a6" },
         ],
@@ -220,10 +222,10 @@ export const organs: Organ[] = [
       { id: "optic", label: "Optic Nerve", detail: "Carries visual signals", position: [0, 0, -2.5], color: "#d89bc4" },
     ],
     anteriorHotspots: [
-      { id: "tm", label: "Trabecular Meshwork", detail: "Primary outflow resistance", position: [0, -0.855, 0], color: "#c9a86a" },
-      { id: "jct", label: "Juxtacanalicular Tissue", detail: "Innermost TM layer", position: [0, -0.855, 0.19], color: "#e8c39a" },
-      { id: "sc", label: "Schlemm's Canal", detail: "Circumferential drainage channel", position: [0, -0.285, 0], color: "#7fa88a" },
-      { id: "cc", label: "Collector Channel", detail: "Drains to aqueous veins", position: [0, 0.57, 0], color: "#6393d8" },
+      { id: "tm", label: "Trabecular Meshwork", detail: "Primary outflow resistance", position: [0.95, 0, 1.21], color: "#c9a86a" },
+      { id: "jct", label: "Juxtacanalicular Tissue", detail: "Innermost TM layer", position: [1.0, 0, 1.22], color: "#e8c39a" },
+      { id: "sc", label: "Schlemm's Canal", detail: "Circumferential drainage channel", position: [1.04, 0, 1.23], color: "#7fa88a" },
+      { id: "cc", label: "Collector Channel", detail: "Drains to aqueous veins", position: [1.3, 0, 1.22], color: "#6393d8" },
     ],
     anteriorLayerIds: [
       "VH_M_cornea_L",
@@ -238,6 +240,7 @@ export const organs: Organ[] = [
       "VH_M_ciliary_processes_L",
       "VH_M_trabecular_meshwork_L",
       "VH_M_schlemms_canal_L",
+      "VH_M_collector_channel_L",
     ],
     quiz: [
       {

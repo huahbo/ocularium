@@ -26,9 +26,10 @@ if (typeof globalThis.FileReader === "undefined") {
 const THREE = require("three");
 const { GLTFLoader } = require("three/examples/jsm/loaders/GLTFLoader.js");
 const { GLTFExporter } = require("three/examples/jsm/exporters/GLTFExporter.js");
+const { mergeGeometries } = require("three/examples/jsm/utils/BufferGeometryUtils.js");
 
 const ROOT = path.resolve(__dirname, "..");
-const INPUT = process.argv[2] || "public/models/eye-anatomy.glb";
+const INPUT = process.argv[2] || "source/eye-anatomy.glb";
 const OUTPUT = process.argv[3] || "public/models/eye-anatomy-baked.glb";
 
 // ---- geometry-kind lookup (must mirror anatomy-materials.ts) ----
@@ -124,6 +125,79 @@ function loadGlb(file) {
   });
 }
 
+/** Radially repositions a ring mesh around the Z axis: x,y multiplied by `s`,
+ *  z untouched. Corrects TM/SC from the iris plane out to the scleral sulcus. */
+function mulberry32(seed) {
+  let s = seed;
+  return () => {
+    s |= 0;
+    s = (s + 0x6d2b79f5) | 0;
+    let t = Math.imul(s ^ (s >>> 15), 1 | s);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function relocateRing(mesh, s) {
+  if (!mesh) return;
+  const pos = mesh.geometry.getAttribute("position");
+  for (let i = 0; i < pos.count; i += 1) {
+    pos.setX(i, pos.getX(i) * s);
+    pos.setY(i, pos.getY(i) * s);
+  }
+  pos.needsUpdate = true;
+}
+
+/** Builds the 28 collector channels (aqueous-vein conduits) as one merged
+ *  mesh. They leave the outer wall of Schlemm's canal (r≈1.05) and run
+ *  radially through the sclera to its surface (r≈1.55). Distribution follows
+ *  the literature: 28 total, nasal-dominant (inferonasal densest), 5 thick
+ *  direct channels (aqueous veins), 23 thin indirect channels. */
+function buildCollectorChannels() {
+  const SC_R = 1.05;
+  const END_R = 1.55;
+  const Z = 1.2;
+  const rand = mulberry32(77);
+  const addTube = (thetaDeg, radius) => {
+    const a = THREE.MathUtils.degToRad(thetaDeg);
+    const curve = new THREE.CatmullRomCurve3([
+      new THREE.Vector3(Math.cos(a) * SC_R, Math.sin(a) * SC_R, Z),
+      new THREE.Vector3(Math.cos(a + 0.07) * (SC_R + 0.25), Math.sin(a + 0.07) * (SC_R + 0.25), Z + 0.04),
+      new THREE.Vector3(Math.cos(a + 0.02) * END_R, Math.sin(a + 0.02) * END_R, Z + 0.02),
+    ]);
+    return new THREE.TubeGeometry(curve, 8, radius, 6, false);
+  };
+  const pick = (start, end, n) => {
+    const out = [];
+    for (let i = 0; i < n; i += 1) {
+      out.push(start + ((i + 0.5) / n) * (end - start) + (rand() - 0.5) * 6);
+    }
+    return out;
+  };
+  // 0° = +X (nasal for the left eye), 90° = +Y, 180° = -X, 270° = -Y
+  const angles = [
+    ...pick(278, 352, 9), // inferonasal: 10 (9 in 278-352 + 1 near +X)
+    ...pick(354, 356, 1),
+    ...pick(12, 78, 6),   // superonasal: 6
+    ...pick(192, 258, 6), // inferotemporal: 6
+    ...pick(102, 168, 6), // superotemporal: 6
+  ];
+  if (angles.length !== 28) throw new Error(`CC count ${angles.length} != 28`);
+  // 5 thick direct channels (aqueous veins), biased to the nasal half
+  const nasalIdx = angles.map((a, i) => (a < 90 || a > 270 ? i : -1)).filter((i) => i >= 0);
+  const thick = new Set();
+  while (thick.size < 5) thick.add(nasalIdx[Math.floor(rand() * nasalIdx.length)]);
+  const geos = angles.map((a, i) => addTube(a, thick.has(i) ? 0.03 : 0.02));
+  const merged = mergeGeometries(geos);
+  geos.forEach((g) => g.dispose());
+  if (!merged) throw new Error("CC merge failed");
+  const mesh = new THREE.Mesh(merged, new THREE.MeshStandardMaterial({ color: 0xd9c27a, roughness: 0.6, transparent: true, opacity: 0.85, side: THREE.DoubleSide }));
+  mesh.name = "VH_M_collector_channel_L";
+  mesh.userData.baked = true;
+  mesh.frustumCulled = false;
+  return mesh;
+}
+
 (async () => {
   const LoopSubdivision = (await import("three-subdivide")).LoopSubdivision;
   const t0 = Date.now();
@@ -133,6 +207,11 @@ function loadGlb(file) {
   console.log(`loaded ${meshes.length} meshes (${Date.now() - t0}ms)`);
 
   let totalSub = 0;
+  // Correct SC/TM placement: from the iris plane out to the scleral sulcus.
+  relocateRing(meshes.find((m) => m.name === "VH_M_trabecular_meshwork_L"), 1.12);
+  relocateRing(meshes.find((m) => m.name === "VH_M_schlemms_canal_L"), 1.25);
+  console.log("relocated TM (x1.12) and SC (x1.25)");
+
   for (const mesh of meshes) {
     const id = PART_FROM_MESH[mesh.name] || null;
     if (!id) continue;
@@ -153,6 +232,11 @@ function loadGlb(file) {
     mesh.userData.baked = true;
   }
   console.log(`total subdivision ${totalSub}ms`);
+
+  // 28 collector channels leaving Schlemm's canal through the sclera.
+  const cc = buildCollectorChannels();
+  gltf.scene.add(cc);
+  console.log("added 28 collector channels (5 thick aqueous veins)");
 
   const exported = await new Promise((res, rej) =>
     new GLTFExporter().parse(gltf.scene, res, rej, { binary: true, onlyVisible: false }),

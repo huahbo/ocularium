@@ -89,7 +89,8 @@ export type AnatomyPartId =
   | "optic_disc"
   | "ora_serrata"
   | "vitreous"
-  | "limbus";
+  | "limbus"
+  | "collector_channel";
 
 /** Maps the HRA mesh name to our short part id. */
 const PART_FROM_MESH: Record<string, AnatomyPartId> = {
@@ -116,6 +117,7 @@ const PART_FROM_MESH: Record<string, AnatomyPartId> = {
   VH_M_optic_disc_L: "optic_disc",
   VH_M_ora_serrata_of_retina_L: "ora_serrata",
   VH_M_vitreous_humor_L: "vitreous",
+  VH_M_collector_channel_L: "collector_channel",
 };
 
 /** Canvas + 2D context helpers ------------------------------------------- */
@@ -699,6 +701,12 @@ export function partTexture(id: AnatomyPartId): THREE.CanvasTexture {
         ctx.fillStyle = "rgba(220,230,235,0.45)";
         ctx.fillRect(0, 0, TEX_SIZE, TEX_SIZE);
         break;
+      case "collector_channel":
+        // Solid pale gold — the CC tubes use a plain color material, but keep
+        // a tiny base texture so partTexture stays total for every id.
+        ctx.fillStyle = "#d9c27a";
+        ctx.fillRect(0, 0, TEX_SIZE, TEX_SIZE);
+        break;
       default:
         drawNoiseBase(ctx, "#cccccc", 1);
     }
@@ -834,6 +842,7 @@ const UV_KIND: Record<AnatomyPartId, "sphere" | "plane" | "cylinder" | "radial">
   optic_disc: "plane",
   ora_serrata: "cylinder",
   vitreous: "sphere",
+  collector_channel: "plane",
   limbus: "sphere",
 };
 
@@ -884,6 +893,14 @@ export function partMaterial(id: AnatomyPartId): THREE.Material {
     metalness: 0,
     side: THREE.DoubleSide,
   });
+  // Collector channels have no UVs (baked tubes); drive their look purely by
+  // color + translucency so the pale-gold conduits read against the sclera.
+  if (id === "collector_channel") {
+    mat.map = null;
+    mat.color.setHex(0xd9c27a);
+    mat.transparent = true;
+    mat.opacity = 0.85;
+  }
   // The choroid's cut surface can fall into light-shadowed normal zones when
   // cross-sectioned; a faint self-emission keeps it from reading as black
   // "empty" patches while preserving the vessel contrast.
