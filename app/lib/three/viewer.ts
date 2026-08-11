@@ -365,7 +365,10 @@ export class AnatomyViewer {
 
     this.organ = organ;
     this.procedural = Boolean(procedural);
-    if (!procedural) this.applyAnatomyMaterials(organ);
+    if (!procedural) {
+      this.applyAnatomyMaterials(organ);
+      this.buildCollectorChannels(organ);
+    }
     organ.pivot.scale.setScalar(1);
     organ.pivot.position.set(0, 0, 0);
     this.scene.add(organ.pivot);
@@ -437,6 +440,53 @@ export class AnatomyViewer {
       materials.forEach((material) => list.includes(material) || list.push(material));
     });
     return list;
+  }
+
+  /**
+   * Generates the 28 collector channels as fine lines leaving Schlemm's canal
+   * (r = 1.00, the limbus inner edge) radially through the sclera to its
+   * surface (r ≈ 1.55). Runtime-only: gltf-transform's draco pass drops Line
+   * primitives, so baking would lose them. Distribution follows the
+   * literature — 28 total, nasal-dominant (inferonasal densest).
+   */
+  private buildCollectorChannels(organ: LoadedOrgan) {
+    if (organ.url !== "/models/eye-anatomy.glb") return;
+    if (organ.meshes.some((m) => m.userData.layer === "VH_M_collector_channel_L")) return;
+    const SC_R = 1.0;
+    const END_R = 1.55;
+    const Z = 1.22;
+    // Deterministic tiny jitter so no two channels are perfectly aligned.
+    const jitter = (seed: number) => ((seed * 37) % 11) - 5;
+    const positions: number[] = [];
+    const addLine = (thetaDeg: number, j: number) => {
+      const a = THREE.MathUtils.degToRad(thetaDeg + j);
+      const curve = new THREE.CatmullRomCurve3([
+        new THREE.Vector3(Math.cos(a) * SC_R, Math.sin(a) * SC_R, Z),
+        new THREE.Vector3(Math.cos(a + 0.05) * (SC_R + 0.28), Math.sin(a + 0.05) * (SC_R + 0.28), Z + 0.03),
+        new THREE.Vector3(Math.cos(a + 0.015) * END_R, Math.sin(a + 0.015) * END_R, Z + 0.015),
+      ]);
+      curve.getPoints(7).forEach((p) => positions.push(p.x, p.y, p.z));
+    };
+    // 0° = +X (nasal for the left eye), 90° = +Y, 180° = -X, 270° = -Y
+    const pick = (start: number, end: number, n: number, base: number) => {
+      for (let i = 0; i < n; i += 1) {
+        addLine(start + ((i + 0.5) / n) * (end - start), jitter(base + i));
+      }
+    };
+    pick(278, 352, 9, 1); // inferonasal: 10
+    addLine(355, jitter(10)); // +1 near +X
+    pick(12, 78, 6, 21);   // superonasal: 6
+    pick(192, 258, 6, 41); // inferotemporal: 6
+    pick(102, 168, 6, 61); // superotemporal: 6
+    if (positions.length / 3 !== 28 * 7) throw new Error("CC line count mismatch");
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.Float32BufferAttribute(new Float32Array(positions), 3));
+    const line = new THREE.Line(geo, new THREE.LineBasicMaterial({ color: 0xd9c27a, transparent: true, opacity: 0.9 }));
+    line.name = "VH_M_collector_channel_L";
+    line.userData.layer = "VH_M_collector_channel_L";
+    organ.pivot.add(line);
+    organ.meshes.push(line as unknown as THREE.Mesh);
+    this.dirty = true;
   }
 
   /**
