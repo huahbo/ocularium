@@ -218,11 +218,12 @@ export function AnatomyApp() {
               </button>
             )}
           </div>
-          {filteredGroups.length === 0 && (
-            <p className="structure-empty">No structures match “{searchQuery.trim()}”.</p>
-          )}
-          {filteredGroups.map((group) => (
-            <div className="structure-group" key={group.group}>
+          <div className="structure-groups">
+            {filteredGroups.length === 0 && (
+              <p className="structure-empty">No structures match “{searchQuery.trim()}”.</p>
+            )}
+            {filteredGroups.map((group) => (
+              <div className="structure-group" key={group.group}>
               <div className="structure-group-heading">{group.group}</div>
               <ul>
                 {group.layers.map((layer) => {
@@ -283,8 +284,9 @@ export function AnatomyApp() {
                   );
                 })}
               </ul>
-            </div>
-          ))}
+              </div>
+            ))}
+          </div>
         </aside>
 
         <div className="viewer-col">

@@ -209,6 +209,23 @@ button:focus-visible, input:focus-visible, canvas:focus-visible {
   font: 500 12px var(--font-serif), serif;
 }
 
+/* Scrollable structure list: the grouped tree grows past the rail height on
+   shorter viewports, so it scrolls inside the rail while the heading and
+   search stay pinned. */
+.structure-groups {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 4px;
+}
+.structure-groups::-webkit-scrollbar { width: 5px; }
+.structure-groups::-webkit-scrollbar-thumb {
+  background: rgba(123, 111, 170, .35);
+  border-radius: 3px;
+}
+.structure-groups::-webkit-scrollbar-track { background: transparent; }
+
 /* Cross-section depth slider (appears while the section tool is active). It
    sits on the same baseline as the auto-rotate button. */
 .section-control {
