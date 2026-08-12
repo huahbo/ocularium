@@ -472,44 +472,98 @@ export class AnatomyViewer {
   }
 
   /**
-   * Generates the 28 collector channels as fine lines leaving Schlemm's canal
-   * (r = 1.28, just outside the ciliary body's outer rim; z = 0.92 at the
-   * ciliary body's posterior rim) radially through the sclera to its surface
-   * (r ≈ 1.55). Runtime-only: gltf-transform's draco pass drops Line
-   * primitives, so baking would lose them. Distribution follows the
-   * literature — 28 total, nasal-dominant (inferonasal densest).
+   * Generates the 28 collector channels as fine lines leaving Schlemm's
+   * canal. Each channel is a single smooth CatmullRom curve (32 samples, no
+   * visible kinks) from SC's outer wall — read live from the baked SC mesh's
+   * per-angle outer radius and z layer, so the channels always hug the canal
+   * wherever SC was relocated to — out through the sclera to r ≈ 1.55. Every
+   * line gets its own random seed so the bends are irregular and natural.
+   * Distribution follows the literature — 28 total, nasal-dominant
+   * (inferonasal densest). Runtime-only: draco drops Line primitives.
    */
   private buildCollectorChannels(organ: LoadedOrgan) {
     if (organ.url !== "/models/eye-anatomy.glb") return;
     if (organ.meshes.some((m) => m.userData.layer === "VH_M_collector_channel_L")) return;
-    const SC_R = 1.28;
     const END_R = 1.55;
-    const Z = 0.92;
-    // Deterministic tiny jitter so no two channels are perfectly aligned.
-    const jitter = (seed: number) => ((seed * 37) % 11) - 5;
+    // Read SC's current per-angle outer wall and mean z from the baked mesh.
+    const BINS = 128;
+    const scOuter = new Array(BINS).fill(0);
+    let zSum = 0;
+    let zCount = 0;
+    const scMesh = organ.meshes.find((m) => m.name === "VH_M_schlemms_canal_L");
+    if (scMesh) {
+      const pos = scMesh.geometry.getAttribute("position");
+      for (let i = 0; i < pos.count; i += 1) {
+        const x = pos.getX(i);
+        const y = pos.getY(i);
+        const r = Math.hypot(x, y);
+        if (r < 0.3) continue;
+        let a = Math.atan2(y, x);
+        if (a < 0) a += Math.PI * 2;
+        const bin = Math.min(BINS - 1, Math.floor(a / (Math.PI * 2) * BINS));
+        if (r > scOuter[bin]) scOuter[bin] = r;
+        zSum += pos.getZ(i);
+        zCount += 1;
+      }
+    }
+    const Z = zCount ? zSum / zCount : 1.03;
+    const scEdgeAt = (a: number) => {
+      const f = (a / (Math.PI * 2)) * BINS;
+      const i = Math.floor(f) % BINS;
+      const t = f - Math.floor(f);
+      return scOuter[i] * (1 - t) + scOuter[(i + 1) % BINS] * t;
+    };
+    const mulberry32 = (seed: number) => {
+      let s = seed;
+      return () => {
+        s |= 0;
+        s = (s + 0x6d2b79f5) | 0;
+        let t = Math.imul(s ^ (s >>> 15), 1 | s);
+        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
+    };
     const positions: number[] = [];
-    const addLine = (thetaDeg: number, j: number) => {
-      const a = THREE.MathUtils.degToRad(thetaDeg + j);
+    const addLine = (thetaDeg: number, seed: number) => {
+      const rand = mulberry32(seed + 7);
+      const a = THREE.MathUtils.degToRad(thetaDeg);
+      const startR = Math.max(scEdgeAt(a) + 0.01, 0.9);
+      // Two randomised mid control points: ±0.08 rad angular wander, radial
+      // spread, small z drift — each line bends uniquely.
+      const bend1 = (rand() - 0.5) * 0.16;
+      const bend2 = (rand() - 0.5) * 0.16;
+      const mid1R = startR + 0.1 + rand() * 0.16;
+      const mid2R = mid1R + 0.12 + rand() * 0.16;
+      const endBend = (bend1 + bend2) * 0.5;
       const curve = new THREE.CatmullRomCurve3([
-        new THREE.Vector3(Math.cos(a) * SC_R, Math.sin(a) * SC_R, Z),
-        new THREE.Vector3(Math.cos(a + 0.05) * (SC_R + 0.28), Math.sin(a + 0.05) * (SC_R + 0.28), Z + 0.03),
-        new THREE.Vector3(Math.cos(a + 0.015) * END_R, Math.sin(a + 0.015) * END_R, Z + 0.015),
+        new THREE.Vector3(Math.cos(a) * startR, Math.sin(a) * startR, Z),
+        new THREE.Vector3(
+          Math.cos(a + bend1) * mid1R,
+          Math.sin(a + bend1) * mid1R,
+          Z + (rand() - 0.5) * 0.08
+        ),
+        new THREE.Vector3(
+          Math.cos(a + bend2) * mid2R,
+          Math.sin(a + bend2) * mid2R,
+          Z + (rand() - 0.5) * 0.08
+        ),
+        new THREE.Vector3(Math.cos(a + endBend) * END_R, Math.sin(a + endBend) * END_R, Z + (rand() - 0.5) * 0.05),
       ]);
-      curve.getPoints(7).forEach((p) => positions.push(p.x, p.y, p.z));
+      // 32 samples per line → visually smooth curve, no kinks.
+      curve.getPoints(31).forEach((p) => positions.push(p.x, p.y, p.z));
     };
     // 0° = +X (nasal for the left eye), 90° = +Y, 180° = -X, 270° = -Y
     const pick = (start: number, end: number, n: number, base: number) => {
       for (let i = 0; i < n; i += 1) {
-        addLine(start + ((i + 0.5) / n) * (end - start), jitter(base + i));
+        addLine(start + ((i + 0.5) / n) * (end - start), base + i);
       }
     };
     pick(278, 352, 9, 1); // inferonasal: 10
-    addLine(355, jitter(10)); // +1 near +X
-    pick(12, 78, 6, 21);   // superonasal: 6
+    addLine(355, 10);     // +1 near +X
+    pick(12, 78, 6, 21);  // superonasal: 6
     pick(192, 258, 6, 41); // inferotemporal: 6
     pick(102, 168, 6, 61); // superotemporal: 6
-    // getPoints(n) returns n+1 points (inclusive of both ends).
-    if (positions.length / 3 !== 28 * 8) throw new Error("CC line count mismatch");
+    if (positions.length / 3 !== 28 * 32) throw new Error("CC line count mismatch");
     const geo = new THREE.BufferGeometry();
     geo.setAttribute("position", new THREE.Float32BufferAttribute(new Float32Array(positions), 3));
     const line = new THREE.Line(geo, new THREE.LineBasicMaterial({ color: 0xd9c27a, transparent: true, opacity: 0.9 }));
