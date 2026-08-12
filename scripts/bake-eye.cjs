@@ -206,19 +206,16 @@ function buildCollectorChannels() {
   console.log(`loaded ${meshes.length} meshes (${Date.now() - t0}ms)`);
 
   let totalSub = 0;
-  // Correct SC/TM placement: they must read as sitting on the OUTER rim of
-  // the ciliary body ring (ciliary body maxXY 1.19) — not inside its hole,
-  // where the raw HRA data drops them (TM 0.885 / SC 0.864).
-  // SC outer edge → 1.28 (0.864 × 1.48): just outside the ciliary body's
-  // outer rim, in the sulcus between the ciliary body and the inner sclera.
-  // TM sits just INSIDE SC: scaled so its outer edge (0.986) kisses SC's
-  // inner wall (1.000) with a hair of clearance — no overlap, no gap.
-  // Both slide back along the visual axis to the ciliary body's POSTERIOR
-  // rim (z ≈ 0.9, ring spans 0.895-1.207); TM z −0.27 aligns it with SC
-  // (z −0.30) so the two rings sit in the same plane instead of z-crossing.
-  relocateRing(meshes.find((m) => m.name === "VH_M_trabecular_meshwork_L"), 1.114, -0.27);
-  relocateRing(meshes.find((m) => m.name === "VH_M_schlemms_canal_L"), 1.48, -0.3);
-  console.log("relocated TM (x1.114, z-0.27) and SC (x1.48, z-0.30)");
+  // Correct SC/TM placement relative to the ciliary body ring (maxXY 1.18):
+  // SC sits INSIDE the ring's outer edge — SC outer wall 1.158 (0.864 × 1.34),
+  // a hair inside the ciliary body's 1.18 outer rim, hugging it from within.
+  // TM's outer edge is scaled to kiss SC's inner wall exactly (TM 0.885 ×
+  // 1.024 ≈ 0.906 = SC inner wall 0.676 × 1.34) — full contact, no gap, no
+  // overlap. Both sit at the ciliary body's posterior rim plane (z ≈ 0.9):
+  // SC dz −0.30 (z 0.891-0.963), TM dz −0.30 aligns with SC.
+  relocateRing(meshes.find((m) => m.name === "VH_M_trabecular_meshwork_L"), 1.018, -0.27);
+  relocateRing(meshes.find((m) => m.name === "VH_M_schlemms_canal_L"), 1.34, -0.3);
+  console.log("relocated TM (x1.018, z-0.27) and SC (x1.34, z-0.30)");
 
   for (const mesh of meshes) {
     const id = PART_FROM_MESH[mesh.name] || null;
