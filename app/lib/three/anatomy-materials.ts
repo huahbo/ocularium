@@ -677,7 +677,9 @@ export function partTexture(id: AnatomyPartId): THREE.CanvasTexture {
         drawTrabecular(ctx, "#c9a866");
         break;
       case "schlemm":
-        drawStriations(ctx, "#b06a52", "rgba(90,30,20,0.45)", 0, 23);
+        // Matches the rail colour swatch (#669980) so the 3D canal reads the
+        // same green as the structure list.
+        drawStriations(ctx, "#669980", "rgba(30,75,58,0.5)", 0, 23);
         break;
       case "choroid":
         drawChoroid(ctx);
