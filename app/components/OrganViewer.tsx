@@ -95,12 +95,14 @@ export function OrganViewer({
             setProgress(0);
           });
           if (current.anteriorLayerIds) viewer.setOnlyLayersVisible(current.anteriorLayerIds);
+          viewer.attachStructureHotspots(current.layers ?? []);
         } else if (nextMode === "layers" && current.anatomyModel) {
           // Layered mode: the fine HRA model is the primary peelable specimen.
           await viewer.setOrgan(current.anatomyModel, current.hotspots, current.accent).catch(() => {
             setLoading(false);
             setProgress(0);
           });
+          viewer.attachStructureHotspots(current.layers ?? []);
         } else {
           const { buildEye } = await import("../lib/three/eye");
           await viewer.setOrgan(current.model, current.hotspots, current.accent, buildEye).catch(() => {
@@ -381,7 +383,7 @@ export function OrganViewer({
         </div>
       )}
 
-      {/* Screen-reader equivalent of the dots, which live in the canvas. */}
+      {/* Screen-reader index of the selectable structures. */}
       <ul className="hotspot-index">
         {(mode === "anterior" && organ.anteriorHotspots ? organ.anteriorHotspots : organ.hotspots).map(
           (hotspot) => (
@@ -410,7 +412,7 @@ export function OrganViewer({
 
       {!chromeHidden && (
         <div className="view-caption">
-          <span>3D specimen · click a dot to explore</span>
+          <span>3D specimen · click a structure to explore</span>
           <strong>{organ.scientificName}</strong>
         </div>
       )}

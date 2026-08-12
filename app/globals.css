@@ -449,7 +449,7 @@ button:focus-visible, input:focus-visible, canvas:focus-visible {
 .mode-switch button.active { background: var(--ink); color: #fffaf3; }
 
 /* Anchor point only — the viewer writes the transform each frame so tracking a
-   spinning model costs no React renders. The dots themselves live in the canvas. */
+   spinning model costs no React renders. */
 .hotspot-callout {
   position: absolute;
   left: 0;

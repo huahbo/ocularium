@@ -15,7 +15,6 @@ type ViewerCallbacks = {
 /** Builds an organ from code (e.g. the layered eye) instead of loading a GLB. */
 export type ProceduralOrganFactory = () => LoadedOrgan;
 
-const DOT_PIXELS = 34;
 const CAMERA_FOV = 34;
 const DEPTH_PREPASS = "depth-prepass";
 const PLINTH_Y = -2.5;
@@ -379,9 +378,9 @@ export class AnatomyViewer {
     this.scene.add(organ.pivot);
     organ.pivot.updateWorldMatrix(true, true);
 
-    // Anchor the dots while the organ is still invisible, then play the intro.
+    // Anchor the hotspots while the organ is still invisible, then play the
+    // intro. (No dots render — anchors feed the callout and selection halo.)
     this.hotspots.attach(organ.pivot, hotspots, organ.meshes);
-    this.hotspots.setPixelSize(DOT_PIXELS, this.height, CAMERA_FOV);
     if (this.crossSection) this.applyClipping(true);
 
     const glow = this.scene.getObjectByName("organ-glow") as THREE.PointLight | undefined;
@@ -454,7 +453,7 @@ export class AnatomyViewer {
       const parent = mesh.parent;
       // Only re-home meshes nested directly under another anatomy mesh;
       // everything else already sits on the model root / pivot.
-      if (!parent || !(parent as THREE.Object3D).isMesh) return;
+      if (!parent || !(parent as THREE.Mesh).isMesh) return;
       const model = parent.parent;
       if (!model) return;
       parent.remove(mesh);
@@ -585,6 +584,38 @@ export class AnatomyViewer {
     this.dirty = true;
   }
 
+  /** Adds one hotspot per structure layer, anchored to its mesh's surface
+   *  centroid, so every structure is clickable for the callout even when the
+   *  authored hotspot list only covers a few (e.g. the 10 shorthand ids of the
+   *  programmatic eye). Existing authored hotspots are preserved; structure
+   *  ids (mesh names) merge alongside them. */
+  attachStructureHotspots(layers: { id: string; label: string; color: string }[]) {
+    if (!this.organ) return;
+    const existingIds = new Set(this.hotspots.list.map((m) => m.hotspot.id));
+    const pivot = this.organ.pivot;
+    const toPivot = new THREE.Matrix4().copy(pivot.matrixWorld).invert();
+    const center = new THREE.Vector3();
+    const added: Hotspot[] = [];
+    for (const layer of layers) {
+      if (existingIds.has(layer.id)) continue;
+      const mesh = this.organ.meshes.find((m) => (m.name || m.userData.layer || "") === layer.id);
+      if (!mesh) continue;
+      mesh.updateWorldMatrix(true, false);
+      new THREE.Box3().setFromObject(mesh).getCenter(center).applyMatrix4(toPivot);
+      added.push({
+        id: layer.id,
+        label: layer.label,
+        detail: layer.label,
+        position: [center.x, center.y, center.z],
+        color: layer.color,
+      });
+    }
+    if (!added.length) return;
+    const existing = this.hotspots.list.map((m) => m.hotspot);
+    this.hotspots.attach(pivot, [...existing, ...added], this.organ.meshes);
+    this.dirty = true;
+  }
+
   /**
    * Fades an organ in. Depth writing stays ON throughout: these are solid,
    * closed meshes, and letting them blend in draw order instead of depth order
@@ -673,8 +704,6 @@ export class AnatomyViewer {
     if (this.hoverProbe) this.resolveHover();
     if (!this.dirty && now >= this.busyUntil) return;
 
-    if (!this.hotspots.update(this.camera, delta, this.selectedId, this.hoveredId)) this.dirty = true;
-    else this.dirty = false;
     if (now < this.busyUntil) this.dirty = true;
 
     this.positionCallout();
@@ -709,7 +738,6 @@ export class AnatomyViewer {
     this.camera.aspect = this.width / this.height;
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(this.width, this.height, false);
-    this.hotspots.setPixelSize(DOT_PIXELS, this.height, CAMERA_FOV);
     this.dirty = true;
   }
 
@@ -741,14 +769,17 @@ export class AnatomyViewer {
     this.dragged = false;
     if (wasDragging) return;
     if (this.quizActive) {
-      // Quiz mode: the click picks a structure mesh, not a hotspot dot.
+      // Quiz mode: the click picks a structure mesh.
       const layerId = this.pickLayerAt(event.offsetX, event.offsetY);
       this.onQuizPick?.(layerId);
       return;
     }
     if (this.tourActive) return; // Tour owns the scene; plain clicks do nothing.
-    const marker = this.hotspots.pick(event.offsetX, event.offsetY, this.camera, this.width, this.height);
-    this.select(marker && marker.hotspot.id !== this.selectedId ? marker.hotspot.id : null);
+    // Structures are picked by raycasting their meshes (no 3D dots anymore);
+    // only ids that map to a hotspot open the callout.
+    const layerId = this.pickLayerAt(event.offsetX, event.offsetY);
+    const matched = layerId ? this.hotspots.list.find((item) => item.hotspot.id === layerId) : null;
+    this.select(matched && matched.hotspot.id !== this.selectedId ? matched.hotspot.id : null);
   };
 
   private onPointerLeave = () => {
@@ -765,8 +796,9 @@ export class AnatomyViewer {
     const probe = this.hoverProbe;
     this.hoverProbe = null;
     if (!probe) return;
-    const marker = this.hotspots.pick(probe.x, probe.y, this.camera, this.width, this.height);
-    const id = marker?.hotspot.id ?? null;
+    // Hovering a structure with a hotspot entry shows a pointer cursor.
+    const layerId = this.pickLayerAt(probe.x, probe.y);
+    const id = layerId && this.hotspots.list.some((item) => item.hotspot.id === layerId) ? layerId : null;
     if (id === this.hoveredId) return;
     this.hoveredId = id;
     this.renderer.domElement.style.cursor = id ? "pointer" : "";
@@ -776,6 +808,7 @@ export class AnatomyViewer {
   private select(id: string | null) {
     if (this.selectedId === id) return;
     this.selectedId = id;
+    this.hotspots.setSelected(id);
     this.busy(0.4);
     const marker = this.hotspots.list.find((item) => item.hotspot.id === id);
     this.callbacks.onSelect(marker?.hotspot ?? null);
@@ -1319,7 +1352,6 @@ export class AnatomyViewer {
     this.quizSnapshot.forEach(({ mesh }) => (mesh.visible = true));
     this.applyClearHighlight();
     this.select(null);
-    this.hotspots.setVisible(false);
     this.dirty = true;
   }
 
@@ -1343,7 +1375,6 @@ export class AnatomyViewer {
       material.needsUpdate = true;
     });
     this.quizSnapshot = [];
-    this.hotspots.setVisible(true);
     if (this.quizCamera) {
       this.tween(this.camera.position, { x: this.quizCamera.position.x, y: this.quizCamera.position.y, z: this.quizCamera.position.z, duration: 0.7, ease: "power2.out" });
       this.tween(this.controls.target, { x: this.quizCamera.target.x, y: this.quizCamera.target.y, z: this.quizCamera.target.z, duration: 0.7, ease: "power2.out" });
