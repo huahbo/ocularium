@@ -50,3 +50,6 @@ next-env.d.ts
 /.codegraph/
 
 /source/
+
+# intermediate bake output
+public/models/eye-anatomy-baked.glb

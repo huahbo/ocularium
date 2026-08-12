@@ -147,7 +147,21 @@
 - D2 LOD：模型已烘焙+压缩（1.2s 加载），单标本展示 LOD 意义小，跳过
 - B1 WebGPU：three WebGPURenderer 兼容风险高，当前 WebGL 正常，跳过
 
-## 4. 验证方法
+## 4. HRA 原始数据注意事项（已知坑，显示时不可搞错）
+
+HRA 眼模型（`source/eye-anatomy.glb`，26MB 原始，来自美国 Human Reference Atlas / Visible Human）的原始数据本身有多处问题，**所有显示逻辑必须使用修正后的数据，不能直接使用原始坐标**：
+
+1. **SC/TM 位置错误（最麻烦，已修）**：原始数据 TM 半径 0.885、SC 半径 0.864，掉在**睫状体环的内孔**里（睫状体环：内缘 ~1.03、外缘 1.18）。解剖正确位置在**睫状体外缘带**：TM → 1.08、SC → 1.14（紧贴睫状体外缘内侧）。`bake-eye.cjs` 的 `relocateRing` 修正（TM ×1.22、SC ×1.32，z+0.03）。**重新烘焙后必须验证实际 bbox**。
+2. **嵌套 mesh 连带隐藏（已修）**：fovea / macula lutea / optic disc 是 **retina 的子节点**；ciliary muscle 是 **ciliary body 的子节点**——父级从 rail 隐藏时子级连带隐藏（Three.js 规则）。`viewer.ts` 的 `flattenNestedMeshes` 在加载后把它们解绑到 model 根（保持局部变换，位置不变）。
+3. **原始 GLB 无 UV**：所有 mesh 没有 TEXCOORD——运行时 `generatePartUVs` 按几何类型投影（sphere/plane/cylinder/radial），烘焙版已生成 UV（`userData.baked` 跳过）。
+4. **mesh 名称在 draco 压缩后丢失**：`eye-anatomy.glb`（压缩版）的 mesh.name 为空——但 **node 名保留**（`VH_M_*_L`），three GLTFLoader 用 node 名填充 mesh.name——运行时按 mesh.name 匹配 layer id（`partIdForMesh`）。**不要用 gltf-transform 删除/重命名 node**。
+5. **draco 丢 Line primitive**：CC（collector channels）烘焙即丢失——必须运行时生成（`buildCollectorChannels`，28 条线，SC 外壁 1.14 → 巩膜 1.55）。
+6. **CC/SC/TM 的坐标系**：HRA 模型是**左眼**，0°=+X 为鼻侧——CC 鼻侧优势分布（inferonasal 最密 10 条）以此为前提。
+7. **choroid/retina 纹理后极汇聚**：`generatePartUVs` 的 `backPole` 参数让血管树汇聚于 -Z（视盘/后极）。
+8. **模型归一化**：加载时按 FIT_SIZE=3.8 归一化并居中（`loaders.ts`）——所有 hotspot 坐标（anatomy-data）在 FIT 空间。
+9. **眼底贴图（纹理问题，非几何）**：正方形照片四角非眼底背景被 sphere 映射成"哑铃"形——已换 CC0 左眼眼底照片 + 圆外径向延伸 + seamless 修复。
+
+## 5. 验证方法
 
 - `npx tsc --noEmit` + `npm run build` 必须全绿
 - Playwright MCP（`skill_mcp` + `playwright`）：操作页面 + 截图

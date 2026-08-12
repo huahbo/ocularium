@@ -152,11 +152,11 @@ function relocateRing(mesh, s, dz = 0) {
 
 /** Builds the 28 collector channels as fine lines (THREE.Line — not tubes,
  *  ~1/10 the calibre of SC). They leave the outer wall of Schlemm's canal
- *  (r = SC outer wall = limbus inner edge, 1.00) and run radially through the
- *  sclera to its surface (r≈1.55). Distribution: 28 total, nasal-dominant
- *  (inferonasal densest), per the literature. */
+ *  (r = SC outer wall = 1.28, just outside the ciliary body's outer rim) and
+ *  run radially through the sclera to its surface (r≈1.55). Distribution:
+ *  28 total, nasal-dominant (inferonasal densest), per the literature. */
 function buildCollectorChannels() {
-  const SC_R = 1.0;
+  const SC_R = 1.28;
   const END_R = 1.55;
   const Z = 1.22;
   const rand = mulberry32(77);
@@ -205,11 +205,15 @@ function buildCollectorChannels() {
   console.log(`loaded ${meshes.length} meshes (${Date.now() - t0}ms)`);
 
   let totalSub = 0;
-  // Correct SC/TM placement: against the limbus (maxXY 1.00, z 1.23-1.43).
-  // TM outer edge → SC inner wall (0.93); SC outer edge → limbus inner (1.00).
-  relocateRing(meshes.find((m) => m.name === "VH_M_trabecular_meshwork_L"), 1.045, 0.03);
-  relocateRing(meshes.find((m) => m.name === "VH_M_schlemms_canal_L"), 1.16, 0.03);
-  console.log("relocated TM (x1.045, z+0.03) and SC (x1.16, z+0.03)");
+  // Correct SC/TM placement: they must read as sitting on the OUTER rim of
+  // the ciliary body ring (ciliary body maxXY 1.19) — not inside its hole,
+  // where the raw HRA data drops them (TM 0.885 / SC 0.864).
+  // TM outer edge → 1.20 (0.885 × 1.355), SC outer edge → 1.28 (0.864 × 1.48):
+  // just outside the ciliary body's outer rim, in the sulcus between the
+  // ciliary body and the inner sclera wall (~1.6). SC hugs TM's outside.
+  relocateRing(meshes.find((m) => m.name === "VH_M_trabecular_meshwork_L"), 1.355, 0.03);
+  relocateRing(meshes.find((m) => m.name === "VH_M_schlemms_canal_L"), 1.48, 0.03);
+  console.log("relocated TM (x1.355, z+0.03) and SC (x1.48, z+0.03)");
 
   for (const mesh of meshes) {
     const id = PART_FROM_MESH[mesh.name] || null;
