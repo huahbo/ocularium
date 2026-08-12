@@ -549,8 +549,14 @@ export class AnatomyViewer {
         ),
         new THREE.Vector3(Math.cos(a + endBend) * END_R, Math.sin(a + endBend) * END_R, Z + (rand() - 0.5) * 0.05),
       ]);
-      // 32 samples per line → visually smooth curve, no kinks.
-      curve.getPoints(31).forEach((p) => positions.push(p.x, p.y, p.z));
+      // 32 samples per line → visually smooth curve, no kinks. Emit as
+      // independent segment pairs so the channels stay disconnected from
+      // each other — a single THREE.Line would join them end-to-end.
+      const pts = curve.getPoints(31);
+      for (let i = 1; i < pts.length; i += 1) {
+        positions.push(pts[i - 1].x, pts[i - 1].y, pts[i - 1].z);
+        positions.push(pts[i].x, pts[i].y, pts[i].z);
+      }
     };
     // 0° = +X (nasal for the left eye), 90° = +Y, 180° = -X, 270° = -Y
     const pick = (start: number, end: number, n: number, base: number) => {
@@ -563,12 +569,17 @@ export class AnatomyViewer {
     pick(12, 78, 6, 21);  // superonasal: 6
     pick(192, 258, 6, 41); // inferotemporal: 6
     pick(102, 168, 6, 61); // superotemporal: 6
-    if (positions.length / 3 !== 28 * 32) throw new Error("CC line count mismatch");
+    // 28 channels × 31 segments × 2 vertices = 1736 (disconnected segments).
+    if (positions.length / 3 !== 28 * 62) throw new Error("CC line count mismatch");
     const geo = new THREE.BufferGeometry();
     geo.setAttribute("position", new THREE.Float32BufferAttribute(new Float32Array(positions), 3));
-    const line = new THREE.Line(geo, new THREE.LineBasicMaterial({ color: 0xd9c27a, transparent: true, opacity: 0.9 }));
+    const line = new THREE.LineSegments(
+      geo,
+      new THREE.LineBasicMaterial({ color: 0xd9c27a, transparent: true, opacity: 0.9 })
+    );
     line.name = "VH_M_collector_channel_L";
     line.userData.layer = "VH_M_collector_channel_L";
+    line.frustumCulled = false;
     organ.pivot.add(line);
     organ.meshes.push(line as unknown as THREE.Mesh);
     this.dirty = true;
