@@ -435,7 +435,31 @@ export class AnatomyViewer {
       });
       mesh.userData.anatomyTextured = true;
     });
+    this.flattenNestedMeshes(organ);
     this.dirty = true;
+  }
+
+  /**
+   * The HRA GLB nests a few structures as children of other anatomy meshes:
+   * the retina carries the fovea / macula lutea / optic disc markers, and the
+   * ciliary body carries the ciliary muscle. Because Three.js hides a child
+   * whenever its parent is hidden, hiding the parent from the rail silently
+   * takes the child with it — e.g. peeling the retina made the markers
+   * impossible to show on their own. Detach every nested anatomy mesh onto the
+   * model root (parents carry no local transform, so each child keeps its
+   * exact position and only gains independent visibility).
+   */
+  private flattenNestedMeshes(organ: LoadedOrgan) {
+    organ.meshes.forEach((mesh) => {
+      const parent = mesh.parent;
+      // Only re-home meshes nested directly under another anatomy mesh;
+      // everything else already sits on the model root / pivot.
+      if (!parent || !(parent as THREE.Object3D).isMesh) return;
+      const model = parent.parent;
+      if (!model) return;
+      parent.remove(mesh);
+      model.add(mesh);
+    });
   }
 
   private materials(organ: LoadedOrgan) {
