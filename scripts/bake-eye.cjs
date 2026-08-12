@@ -273,6 +273,86 @@ function narrowRingBand(mesh, factor) {
   pos.needsUpdate = true;
 }
 
+/** Map a ring's INNER edge onto a reference edge: the mesh's inner wall lands
+ *  `gap` inside the reference ring's edge at the same angle, and the ring's
+ *  band is compressed to `targetBand` (t: 0 at inner edge → refEdge − gap,
+ *  t: 1 at outer edge → refEdge − gap + targetBand). Keeps the elliptical
+ *  shape; the outer edge never gets to choose its radius, so a small
+ *  targetBand guarantees the whole ring stays inside the reference. Used for
+ *  TM: inner wall kisses SC's outer wall, TM tube is a thin strip. */
+function remapRingInnerToReference(mesh, refMesh, refSide, gap, targetBand, dz = 0) {
+  if (!mesh || !refMesh) return;
+  const BINS = 128;
+  const refPos = refMesh.geometry.getAttribute("position");
+  const refEdge = new Array(BINS).fill(refSide === "inner" ? Infinity : 0);
+  for (let i = 0; i < refPos.count; i += 1) {
+    const x = refPos.getX(i);
+    const y = refPos.getY(i);
+    const r = Math.hypot(x, y);
+    if (r < 0.3) continue;
+    let a = Math.atan2(y, x);
+    if (a < 0) a += Math.PI * 2;
+    const bin = Math.min(BINS - 1, Math.floor(a / (Math.PI * 2) * BINS));
+    if (refSide === "inner" ? r < refEdge[bin] : r > refEdge[bin]) refEdge[bin] = r;
+  }
+  for (let i = 0; i < BINS; i += 1) {
+    if (refSide === "inner" ? refEdge[i] === Infinity : refEdge[i] === 0) {
+      let j = 1;
+      while (j < BINS) {
+        const k = (i + j) % BINS;
+        if (refSide === "inner" ? refEdge[k] !== Infinity : refEdge[k] !== 0) {
+          refEdge[i] = refEdge[k];
+          break;
+        }
+        j += 1;
+      }
+    }
+  }
+  const pos = mesh.geometry.getAttribute("position");
+  const meshInner = new Array(BINS).fill(1e9);
+  const meshOuter = new Array(BINS).fill(0);
+  for (let i = 0; i < pos.count; i += 1) {
+    const x = pos.getX(i);
+    const y = pos.getY(i);
+    const r = Math.hypot(x, y);
+    if (r < 0.3) continue;
+    let a = Math.atan2(y, x);
+    if (a < 0) a += Math.PI * 2;
+    const bin = Math.min(BINS - 1, Math.floor(a / (Math.PI * 2) * BINS));
+    if (r < meshInner[bin]) meshInner[bin] = r;
+    if (r > meshOuter[bin]) meshOuter[bin] = r;
+  }
+  const edgeAt = (arr, a) => {
+    const f = (a / (Math.PI * 2)) * BINS;
+    const i = Math.floor(f) % BINS;
+    const t = f - Math.floor(f);
+    return arr[i] * (1 - t) + arr[(i + 1) % BINS] * t;
+  };
+  for (let i = 0; i < pos.count; i += 1) {
+    const x = pos.getX(i);
+    const y = pos.getY(i);
+    const r = Math.hypot(x, y);
+    const z = pos.getZ(i) + dz;
+    let newR = r;
+    if (r >= 0.3) {
+      let a = Math.atan2(y, x);
+      if (a < 0) a += Math.PI * 2;
+      const inn = edgeAt(meshInner, a);
+      const out = edgeAt(meshOuter, a);
+      const band = out - inn;
+      if (band > 1e-4) {
+        const t = Math.min(1, Math.max(0, (r - inn) / band));
+        newR = edgeAt(refEdge, a) - gap + t * targetBand;
+      }
+    }
+    const scale = r > 1e-6 ? newR / r : 1;
+    pos.setX(i, x * scale);
+    pos.setY(i, y * scale);
+    pos.setZ(i, z);
+  }
+  pos.needsUpdate = true;
+}
+
 /** Builds the 28 collector channels as fine lines (THREE.Line — not tubes,
  *  ~1/10 the calibre of SC). They leave the outer wall of Schlemm's canal
  *  (r = SC outer wall = 1.28, just outside the ciliary body's outer rim,
@@ -340,16 +420,11 @@ function buildCollectorChannels() {
   const tmMesh = meshes.find((m) => m.name === "VH_M_trabecular_meshwork_L");
   const cbMesh = meshes.find((m) => m.name === "VH_M_ciliary_body_L");
   remapRingToReference(scMesh, cbMesh, "outer", 0.1, -0.2);
-  // TM hugs SC's inner wall with zero clearance — the previous 0.005 target
-  // still left a visible 0.003-0.042 gap (interpolation spread), so TM moves
-  // out by that amount and the whole ring reads as touching SC. Band width
-  // stays as-is; SC stays inside the ciliary body (outer = CB − 0.10), so
-  // TM+SC remain fully inside the ring.
-  remapRingToReference(tmMesh, scMesh, "inner", 0.0, -0.27);
-  // TM is a thin filter strip anatomically — after the kiss remap, halve its
-  // band width (outer edge stays glued to SC's inner wall, inner edge pulls
-  // outward) so the ring reads as a narrow channel, not a wide band.
-  narrowRingBand(tmMesh, 0.5);
+  // TM: inner wall kisses SC's OUTER wall (TM wraps outside SC), and the tube
+  // is a thin strip (targetBand 0.04) — with SC at CB − 0.10, TM's outer edge
+  // lands at CB − 0.10 + 0.04 = CB − 0.06, so SC+TM stay fully inside the
+  // ciliary body. Elliptical shape preserved per angle.
+  remapRingInnerToReference(tmMesh, scMesh, "outer", 0.005, 0.04, -0.27);
   console.log("remapped SC (CB outer − 0.10, z−0.30) and TM (SC inner − 0.005, band ×0.5, z−0.27)");
 
   for (const mesh of meshes) {
