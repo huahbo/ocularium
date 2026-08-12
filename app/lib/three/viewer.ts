@@ -473,17 +473,18 @@ export class AnatomyViewer {
 
   /**
    * Generates the 28 collector channels as fine lines leaving Schlemm's canal
-   * (r = 1.28, just outside the ciliary body's outer rim) radially through
-   * the sclera to its surface (r ≈ 1.55). Runtime-only: gltf-transform's
-   * draco pass drops Line primitives, so baking would lose them. Distribution
-   * follows the literature — 28 total, nasal-dominant (inferonasal densest).
+   * (r = 1.28, just outside the ciliary body's outer rim; z = 0.92 at the
+   * ciliary body's posterior rim) radially through the sclera to its surface
+   * (r ≈ 1.55). Runtime-only: gltf-transform's draco pass drops Line
+   * primitives, so baking would lose them. Distribution follows the
+   * literature — 28 total, nasal-dominant (inferonasal densest).
    */
   private buildCollectorChannels(organ: LoadedOrgan) {
     if (organ.url !== "/models/eye-anatomy.glb") return;
     if (organ.meshes.some((m) => m.userData.layer === "VH_M_collector_channel_L")) return;
     const SC_R = 1.28;
     const END_R = 1.55;
-    const Z = 1.22;
+    const Z = 0.92;
     // Deterministic tiny jitter so no two channels are perfectly aligned.
     const jitter = (seed: number) => ((seed * 37) % 11) - 5;
     const positions: number[] = [];
