@@ -340,7 +340,12 @@ function buildCollectorChannels() {
   const tmMesh = meshes.find((m) => m.name === "VH_M_trabecular_meshwork_L");
   const cbMesh = meshes.find((m) => m.name === "VH_M_ciliary_body_L");
   remapRingToReference(scMesh, cbMesh, "outer", 0.1, -0.2);
-  remapRingToReference(tmMesh, scMesh, "inner", 0.005, -0.27);
+  // TM hugs SC's inner wall with zero clearance — the previous 0.005 target
+  // still left a visible 0.003-0.042 gap (interpolation spread), so TM moves
+  // out by that amount and the whole ring reads as touching SC. Band width
+  // stays as-is; SC stays inside the ciliary body (outer = CB − 0.10), so
+  // TM+SC remain fully inside the ring.
+  remapRingToReference(tmMesh, scMesh, "inner", 0.0, -0.27);
   // TM is a thin filter strip anatomically — after the kiss remap, halve its
   // band width (outer edge stays glued to SC's inner wall, inner edge pulls
   // outward) so the ring reads as a narrow channel, not a wide band.
