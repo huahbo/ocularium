@@ -226,6 +226,53 @@ function remapRingToReference(mesh, refMesh, refSide, gap, dz = 0) {
   pos.needsUpdate = true;
 }
 
+/** Narrow a ring's band: keeps each vertex's angle and the ring's OUTER edge
+ *  fixed, and pulls the inner edge outward so the band shrinks to
+ *  `factor × current width`. Used to make the TM read as a thin filter strip
+ *  (physiology) after it has been remapped to kiss SC's inner wall. */
+function narrowRingBand(mesh, factor) {
+  if (!mesh) return;
+  const BINS = 128;
+  const pos = mesh.geometry.getAttribute("position");
+  const inner = new Array(BINS).fill(1e9);
+  const outer = new Array(BINS).fill(0);
+  for (let i = 0; i < pos.count; i += 1) {
+    const x = pos.getX(i);
+    const y = pos.getY(i);
+    const r = Math.hypot(x, y);
+    if (r < 0.3) continue;
+    let a = Math.atan2(y, x);
+    if (a < 0) a += Math.PI * 2;
+    const b = Math.min(BINS - 1, Math.floor(a / (Math.PI * 2) * BINS));
+    if (r < inner[b]) inner[b] = r;
+    if (r > outer[b]) outer[b] = r;
+  }
+  const edgeAt = (arr, a) => {
+    const f = (a / (Math.PI * 2)) * BINS;
+    const i = Math.floor(f) % BINS;
+    const t = f - Math.floor(f);
+    return arr[i] * (1 - t) + arr[(i + 1) % BINS] * t;
+  };
+  for (let i = 0; i < pos.count; i += 1) {
+    const x = pos.getX(i);
+    const y = pos.getY(i);
+    const r = Math.hypot(x, y);
+    if (r < 0.3) continue;
+    let a = Math.atan2(y, x);
+    if (a < 0) a += Math.PI * 2;
+    const o = edgeAt(outer, a);
+    const inn = edgeAt(inner, a);
+    const band = o - inn;
+    if (band < 1e-4) continue;
+    // t = 1 at the inner edge, 0 at the outer edge; outer stays put.
+    const t = Math.min(1, Math.max(0, (o - r) / band));
+    const newR = o - t * band * factor;
+    pos.setX(i, (x / r) * newR);
+    pos.setY(i, (y / r) * newR);
+  }
+  pos.needsUpdate = true;
+}
+
 /** Builds the 28 collector channels as fine lines (THREE.Line — not tubes,
  *  ~1/10 the calibre of SC). They leave the outer wall of Schlemm's canal
  *  (r = SC outer wall = 1.28, just outside the ciliary body's outer rim,
@@ -294,7 +341,11 @@ function buildCollectorChannels() {
   const cbMesh = meshes.find((m) => m.name === "VH_M_ciliary_body_L");
   remapRingToReference(scMesh, cbMesh, "outer", 0.1, -0.3);
   remapRingToReference(tmMesh, scMesh, "inner", 0.005, -0.27);
-  console.log("remapped SC (CB outer − 0.10, z−0.30) and TM (SC inner − 0.005, z−0.27)");
+  // TM is a thin filter strip anatomically — after the kiss remap, halve its
+  // band width (outer edge stays glued to SC's inner wall, inner edge pulls
+  // outward) so the ring reads as a narrow channel, not a wide band.
+  narrowRingBand(tmMesh, 0.5);
+  console.log("remapped SC (CB outer − 0.10, z−0.30) and TM (SC inner − 0.005, band ×0.5, z−0.27)");
 
   for (const mesh of meshes) {
     const id = PART_FROM_MESH[mesh.name] || null;
