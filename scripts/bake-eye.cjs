@@ -339,7 +339,7 @@ function buildCollectorChannels() {
   const scMesh = meshes.find((m) => m.name === "VH_M_schlemms_canal_L");
   const tmMesh = meshes.find((m) => m.name === "VH_M_trabecular_meshwork_L");
   const cbMesh = meshes.find((m) => m.name === "VH_M_ciliary_body_L");
-  remapRingToReference(scMesh, cbMesh, "outer", 0.1, -0.3);
+  remapRingToReference(scMesh, cbMesh, "outer", 0.1, -0.2);
   remapRingToReference(tmMesh, scMesh, "inner", 0.005, -0.27);
   // TM is a thin filter strip anatomically — after the kiss remap, halve its
   // band width (outer edge stays glued to SC's inner wall, inner edge pulls
