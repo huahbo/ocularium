@@ -1349,10 +1349,13 @@ export class AnatomyViewer {
    *  which owns the highlight state. */
   highlightLayer(layerId: string, selectedOpacity = 1) {
     if (this.quizActive || this.tourActive) return;
-    this.applyHighlight(layerId, selectedOpacity);
+    // Rail selection dims the rest of the eye harder (0.05) and only adds a
+    // faint glow, so dark layers (e.g. the choroid) keep their true colour
+    // instead of washing out to pink under a white emissive.
+    this.applyHighlight(layerId, selectedOpacity, 0.05, 0.05);
   }
 
-  private applyHighlight(layerId: string, selectedOpacity: number) {
+  private applyHighlight(layerId: string, selectedOpacity: number, dimOpacity = 0.18, glow = 0.22) {
     if (!this.organ) return;
     this.highlightedLayer = layerId;
     this.organ.meshes.forEach((mesh) => {
@@ -1361,12 +1364,21 @@ export class AnatomyViewer {
       const material = Array.isArray(mesh.material) ? mesh.material[0] : mesh.material;
       if (!material) return;
       // Dim the background, but keep the selected layer at its own opacity.
-      material.opacity = target ? selectedOpacity : 0.18;
+      material.opacity = target ? selectedOpacity : dimOpacity;
       material.transparent = true;
+      // A dimmed layer must not keep writing depth: it would occlude the
+      // highlighted layer sitting behind it (e.g. the choroid behind the
+      // iris). Remember the original value so the clear path can restore it.
+      if (!target) {
+        material.userData.dimDepthWrite ??= material.depthWrite;
+        material.depthWrite = false;
+      } else {
+        material.depthWrite = material.userData.dimDepthWrite ?? material.depthWrite;
+      }
       material.needsUpdate = true;
       if (target && "emissive" in material) {
         (material as THREE.MeshStandardMaterial).emissive.set(0xffffff);
-        (material as THREE.MeshStandardMaterial).emissiveIntensity = 0.22;
+        (material as THREE.MeshStandardMaterial).emissiveIntensity = glow;
       }
     });
     this.dirty = true;
@@ -1390,6 +1402,10 @@ export class AnatomyViewer {
         ? (material.userData.defaultOpacity ?? 0.5)
         : 1;
       material.transparent = material.userData.proceduralTransparent || material.opacity < 1;
+      if (material.userData.dimDepthWrite !== undefined) {
+        material.depthWrite = material.userData.dimDepthWrite;
+        delete material.userData.dimDepthWrite;
+      }
       material.needsUpdate = true;
       if ("emissive" in material) {
         (material as THREE.MeshStandardMaterial).emissive.set(0x000000);

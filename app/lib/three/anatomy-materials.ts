@@ -370,8 +370,8 @@ function drawChoroid(ctx: CanvasRenderingContext2D) {
   const R = TEX_SIZE * 0.5;
   // Deep red-brown base with a subtle radial falloff.
   const grad = ctx.createRadialGradient(cx, cy, R * 0.05, cx, cy, R);
-  grad.addColorStop(0, "#9a3844");
-  grad.addColorStop(1, "#6e2030");
+  grad.addColorStop(0, "#8a2e38");
+  grad.addColorStop(1, "#5c1824");
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, TEX_SIZE, TEX_SIZE);
 
