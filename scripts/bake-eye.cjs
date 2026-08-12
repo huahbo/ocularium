@@ -421,11 +421,11 @@ function buildCollectorChannels() {
   const cbMesh = meshes.find((m) => m.name === "VH_M_ciliary_body_L");
   remapRingToReference(scMesh, cbMesh, "outer", 0.1, -0.2);
   // TM: inner wall kisses SC's OUTER wall (TM wraps outside SC), the tube is
-  // a thin strip (targetBand 0.04), and TM shares SC's z layer (dz −0.20,
-  // same as SC) so the two rings sit side-by-side on the same visual-axis
-  // plane — the TM tube hugs SC's outer surface instead of lagging behind it.
+  // a thin strip (targetBand 0.04), and TM centers on SC's z layer (dz −0.18,
+  // vs SC −0.20 — TM is 0.03 thicker, so centering aligns both tubes coaxially
+  // and the TM inner arc fully hugs SC's outer surface).
   // SC at CB − 0.10 + band 0.04 → TM outer lands at CB − 0.06: fully inside.
-  remapRingInnerToReference(tmMesh, scMesh, "outer", 0.005, 0.04, -0.2);
+  remapRingInnerToReference(tmMesh, scMesh, "outer", 0.005, 0.04, -0.18);
   console.log("remapped SC (CB outer − 0.10, z−0.30) and TM (SC inner − 0.005, band ×0.5, z−0.27)");
 
   for (const mesh of meshes) {
