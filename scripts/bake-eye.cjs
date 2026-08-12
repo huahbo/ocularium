@@ -150,6 +150,82 @@ function relocateRing(mesh, s, dz = 0) {
   pos.needsUpdate = true;
 }
 
+/** Per-angle radial remap (Plan v6): for each vertex of `mesh`, scale its XY
+ *  radius so the ring's OUTER edge lands `gap` inside the reference ring's
+ *  outer (or inner) edge at the SAME angle. Uniform `relocateRing` cannot fix
+ *  the SC/TM gap because both rings are elliptical (nasal +X large, temporal
+ *  -X small) — per-angle remap keeps each ring's elliptical shape while making
+ *  SC sit inside the ciliary body and TM kiss SC's inner wall everywhere. */
+function remapRingToReference(mesh, refMesh, refSide, gap, dz = 0) {
+  if (!mesh || !refMesh) return;
+  const BINS = 128;
+  const refPos = refMesh.geometry.getAttribute("position");
+  const refEdge = new Array(BINS).fill(refSide === "inner" ? Infinity : 0);
+  for (let i = 0; i < refPos.count; i += 1) {
+    const x = refPos.getX(i);
+    const y = refPos.getY(i);
+    const r = Math.hypot(x, y);
+    if (r < 0.3) continue;
+    let a = Math.atan2(y, x);
+    if (a < 0) a += Math.PI * 2;
+    const bin = Math.min(BINS - 1, Math.floor(a / (Math.PI * 2) * BINS));
+    if (refSide === "inner" ? r < refEdge[bin] : r > refEdge[bin]) refEdge[bin] = r;
+  }
+  for (let i = 0; i < BINS; i += 1) {
+    if (refSide === "inner" ? refEdge[i] === Infinity : refEdge[i] === 0) {
+      let j = 1;
+      while (j < BINS) {
+        const k = (i + j) % BINS;
+        if (refSide === "inner" ? refEdge[k] !== Infinity : refEdge[k] !== 0) {
+          refEdge[i] = refEdge[k];
+          break;
+        }
+        j += 1;
+      }
+    }
+  }
+  const pos = mesh.geometry.getAttribute("position");
+  const meshOuter = new Array(BINS).fill(0);
+  for (let i = 0; i < pos.count; i += 1) {
+    const x = pos.getX(i);
+    const y = pos.getY(i);
+    const r = Math.hypot(x, y);
+    if (r < 0.3) continue;
+    let a = Math.atan2(y, x);
+    if (a < 0) a += Math.PI * 2;
+    const bin = Math.min(BINS - 1, Math.floor(a / (Math.PI * 2) * BINS));
+    if (r > meshOuter[bin]) meshOuter[bin] = r;
+  }
+  // Linear interpolation between adjacent bins — bin-quantising both rings
+  // independently leaves up to half a bin of angular mismatch (the TM kiss
+  // came out 0.001-0.036 overlapped); interpolating cancels that error.
+  const edgeAt = (arr, a) => {
+    const f = (a / (Math.PI * 2)) * BINS;
+    const i = Math.floor(f) % BINS;
+    const t = f - Math.floor(f);
+    return arr[i] * (1 - t) + arr[(i + 1) % BINS] * t;
+  };
+  for (let i = 0; i < pos.count; i += 1) {
+    const x = pos.getX(i);
+    const y = pos.getY(i);
+    const r = Math.hypot(x, y);
+    const z = pos.getZ(i) + dz;
+    let scale = 1;
+    if (r >= 0.3) {
+      let a = Math.atan2(y, x);
+      if (a < 0) a += Math.PI * 2;
+      const outer = edgeAt(meshOuter, a);
+      if (outer > 0.3) {
+        scale = Math.max(0.2, (edgeAt(refEdge, a) - gap) / outer);
+      }
+    }
+    pos.setX(i, x * scale);
+    pos.setY(i, y * scale);
+    pos.setZ(i, z);
+  }
+  pos.needsUpdate = true;
+}
+
 /** Builds the 28 collector channels as fine lines (THREE.Line — not tubes,
  *  ~1/10 the calibre of SC). They leave the outer wall of Schlemm's canal
  *  (r = SC outer wall = 1.28, just outside the ciliary body's outer rim,
@@ -206,16 +282,19 @@ function buildCollectorChannels() {
   console.log(`loaded ${meshes.length} meshes (${Date.now() - t0}ms)`);
 
   let totalSub = 0;
-  // Correct SC/TM placement relative to the ciliary body ring (maxXY 1.18):
-  // SC sits INSIDE the ring's outer edge — SC outer wall 1.158 (0.864 × 1.34),
-  // a hair inside the ciliary body's 1.18 outer rim, hugging it from within.
-  // TM's outer edge is scaled to kiss SC's inner wall exactly (TM 0.885 ×
-  // 1.024 ≈ 0.906 = SC inner wall 0.676 × 1.34) — full contact, no gap, no
-  // overlap. Both sit at the ciliary body's posterior rim plane (z ≈ 0.9):
-  // SC dz −0.30 (z 0.891-0.963), TM dz −0.30 aligns with SC.
-  relocateRing(meshes.find((m) => m.name === "VH_M_trabecular_meshwork_L"), 1.018, -0.27);
-  relocateRing(meshes.find((m) => m.name === "VH_M_schlemms_canal_L"), 1.34, -0.3);
-  console.log("relocated TM (x1.018, z-0.27) and SC (x1.34, z-0.30)");
+  // Plan v6 — per-angle remap (uniform scaling can't fix the elliptical
+  // SC/TM rings):
+  //  • SC: outer edge → ciliary body outer edge − 0.10 per angle (SC sits
+  //    INSIDE the ciliary body ring with visible tissue around it).
+  //  • TM: outer edge → SC inner edge − 0.005 per angle (full kiss, no gap).
+  // z: both stay on the ciliary body's posterior-rim plane (SC −0.30,
+  // TM −0.27 to align front edges).
+  const scMesh = meshes.find((m) => m.name === "VH_M_schlemms_canal_L");
+  const tmMesh = meshes.find((m) => m.name === "VH_M_trabecular_meshwork_L");
+  const cbMesh = meshes.find((m) => m.name === "VH_M_ciliary_body_L");
+  remapRingToReference(scMesh, cbMesh, "outer", 0.1, -0.3);
+  remapRingToReference(tmMesh, scMesh, "inner", 0.005, -0.27);
+  console.log("remapped SC (CB outer − 0.10, z−0.30) and TM (SC inner − 0.005, z−0.27)");
 
   for (const mesh of meshes) {
     const id = PART_FROM_MESH[mesh.name] || null;
