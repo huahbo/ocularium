@@ -53,3 +53,6 @@ next-env.d.ts
 
 # intermediate bake output
 public/models/eye-anatomy-baked.glb
+
+# local reference literature (downloaded, not project code)
+references/

@@ -400,6 +400,300 @@ function buildCollectorChannels() {
   return mesh;
 }
 
+/** Build an interpolator r_inner(z) from the sclera's inner surface
+ *  (min radius per z-slice, averaged over angle). Used as the radial target
+ *  curve when stretching the ciliary body along the eye axis. */
+function buildScleraInnerProfile(scleraMesh, z0, z1, zbins) {
+  const pos = scleraMesh.geometry.getAttribute("position");
+  const inner = new Array(zbins).fill(1e9);
+  for (let i = 0; i < pos.count; i += 1) {
+    const z = pos.getZ(i);
+    const f = (z - z0) / (z1 - z0);
+    if (f < 0 || f >= 1) continue;
+    const r = Math.hypot(pos.getX(i), pos.getY(i));
+    const b = Math.floor(f * zbins);
+    if (r < inner[b]) inner[b] = r;
+  }
+  // nearest-neighbor fill for empty bins
+  for (let b = 0; b < zbins; b += 1) {
+    if (inner[b] !== 1e9) continue;
+    for (let j = 1; j < zbins; j += 1) {
+      if (b - j >= 0 && inner[b - j] !== 1e9) { inner[b] = inner[b - j]; break; }
+      if (b + j < zbins && inner[b + j] !== 1e9) { inner[b] = inner[b + j]; break; }
+    }
+  }
+  return (z) => {
+    const f = (z - z0) / (z1 - z0);
+    const fb = Math.min(zbins - 1, Math.max(0, f * zbins));
+    const i = Math.floor(fb);
+    const i2 = Math.min(zbins - 1, i + 1);
+    const t = fb - i;
+    return inner[i] * (1 - t) + inner[i2] * t;
+  };
+}
+
+/** Phase 2: stretch a ciliary ring along the eye axis (anterior end anchored)
+ *  and remap each vertex's radius so the ring keeps hugging the sclera's inner
+ *  surface at its new z. */
+function stretchRingAlongZ(mesh, zMinCur, zMaxCur, zMinNew, zMaxNew, scleraInner) {
+  if (!mesh) return;
+  const pos = mesh.geometry.getAttribute("position");
+  const spanCur = zMaxCur - zMinCur;
+  const spanNew = zMaxNew - zMinNew;
+  for (let i = 0; i < pos.count; i += 1) {
+    const x = pos.getX(i);
+    const y = pos.getY(i);
+    const z = pos.getZ(i);
+    const r = Math.hypot(x, y);
+    const f = (z - zMinCur) / spanCur; // 0 at posterior, 1 at anterior
+    const zNew = zMinNew + f * spanNew;
+    const rsCur = scleraInner(z);
+    const rsNew = scleraInner(zNew);
+    const scale = rsCur > 1e-4 ? rsNew / rsCur : 1;
+    const rNew = r * scale;
+    const c = r > 1e-6 ? rNew / r : 0;
+    pos.setX(i, x * c);
+    pos.setY(i, y * c);
+    pos.setZ(i, zNew);
+  }
+  pos.needsUpdate = true;
+}
+
+/** Phase 2b: retract a shell's anterior edge to the ciliary body's new
+ *  posterior boundary (compress z, remap radius to the sclera inner surface). */
+function retractAnteriorZ(mesh, zBreak, zNewMax, scleraInner) {
+  if (!mesh) return;
+  const pos = mesh.geometry.getAttribute("position");
+  let zMax = -1e9;
+  for (let i = 0; i < pos.count; i += 1) zMax = Math.max(zMax, pos.getZ(i));
+  const spanOld = Math.max(1e-4, zMax - zBreak);
+  const spanNew = zNewMax - zBreak;
+  for (let i = 0; i < pos.count; i += 1) {
+    const z = pos.getZ(i);
+    if (z <= zBreak) continue;
+    const x = pos.getX(i);
+    const y = pos.getY(i);
+    const r = Math.hypot(x, y);
+    const f = (z - zBreak) / spanOld;
+    const zNew = zBreak + f * spanNew;
+    const rsCur = scleraInner(z);
+    const rsNew = scleraInner(zNew);
+    const scale = rsCur > 1e-4 ? rsNew / rsCur : 1;
+    const rNew = r * scale;
+    const c = r > 1e-6 ? rNew / r : 0;
+    pos.setX(i, x * c);
+    pos.setY(i, y * c);
+    pos.setZ(i, zNew);
+  }
+  pos.needsUpdate = true;
+}
+
+/** Phase 3a: thicken the cornea centre (inner surface only) to ~0.5 mm. The
+ *  outer (anterior) surface stays fixed; the posterior surface is pushed back
+ *  near the axis, tapering to zero at `taperRadius`. */
+function thickenCorneaCenter(mesh, targetThickness, taperRadius) {
+  if (!mesh) return;
+  const pos = mesh.geometry.getAttribute("position");
+  let apexZ = -1e9;
+  for (let i = 0; i < pos.count; i += 1) apexZ = Math.max(apexZ, pos.getZ(i));
+  let innerCenterZ = 1e9;
+  for (let i = 0; i < pos.count; i += 1) {
+    if (Math.hypot(pos.getX(i), pos.getY(i)) < 0.1) innerCenterZ = Math.min(innerCenterZ, pos.getZ(i));
+  }
+  const curThick = apexZ - innerCenterZ;
+  const delta = targetThickness - curThick;
+  if (delta <= 0) return;
+  const innerThreshold = apexZ - curThick * 0.5;
+  for (let i = 0; i < pos.count; i += 1) {
+    const z = pos.getZ(i);
+    if (z >= innerThreshold) continue; // outer surface
+    const r = Math.hypot(pos.getX(i), pos.getY(i));
+    const taper = Math.max(0, 1 - r / taperRadius);
+    if (taper <= 0) continue;
+    pos.setZ(i, z - delta * taper);
+  }
+  pos.needsUpdate = true;
+}
+
+/** Phase 4: re-profile a ciliary ring's cross-section. Keeps the outer edge on
+ *  the sclera inner surface and remaps the inner edge so the radial band equals
+ *  `thicknessFn(z)` (triangle: thick anterior -> 0 posterior). */
+function reprofileCiliary(mesh, thicknessFn, scleraInner) {
+  if (!mesh) return;
+  const ZB = 64;
+  const pos = mesh.geometry.getAttribute("position");
+  let zmin = 1e9;
+  let zmax = -1e9;
+  for (let i = 0; i < pos.count; i += 1) {
+    const z = pos.getZ(i);
+    zmin = Math.min(zmin, z);
+    zmax = Math.max(zmax, z);
+  }
+  // per-z radial band (max depth from the sclera inner surface), angle-averaged.
+  const band = new Array(ZB).fill(0);
+  for (let i = 0; i < pos.count; i += 1) {
+    const z = pos.getZ(i);
+    const r = Math.hypot(pos.getX(i), pos.getY(i));
+    const d = scleraInner(z) - r;
+    if (d < 0) continue;
+    const zb = Math.min(ZB - 1, Math.max(0, Math.floor(((z - zmin) / (zmax - zmin)) * ZB)));
+    if (d > band[zb]) band[zb] = d;
+  }
+  const bandAt = (z) => {
+    const f = ((z - zmin) / (zmax - zmin)) * ZB;
+    const i = Math.min(ZB - 1, Math.max(0, Math.floor(f)));
+    const i2 = Math.min(ZB - 1, i + 1);
+    const t = f - i;
+    return band[i] * (1 - t) + band[i2] * t;
+  };
+  for (let i = 0; i < pos.count; i += 1) {
+    const x = pos.getX(i);
+    const y = pos.getY(i);
+    const z = pos.getZ(i);
+    const r = Math.hypot(x, y);
+    const rOuter = scleraInner(z);
+    const d = Math.max(0, rOuter - r);
+    const b = bandAt(z);
+    const f = b > 1e-4 ? Math.min(1, d / b) : 0;
+    const t = Math.max(0, thicknessFn(z));
+    const rNew = rOuter - f * t;
+    const c = r > 1e-6 ? rNew / r : 0;
+    pos.setX(i, x * c);
+    pos.setY(i, y * c);
+  }
+  pos.needsUpdate = true;
+}
+
+/** Phase 4: shorten the ciliary muscle to ~4 mm and give it a wedge profile
+ *  (thick anterior -> 0 posterior), hugging the sclera (outer portion only). */
+function reprofileMuscle(mesh, scleraInner) {
+  if (!mesh) return;
+  const pos = mesh.geometry.getAttribute("position");
+  // 1. z remap: [0.6, 1.225] -> [0.6, 1.208]; z < 0.6 collapses to 0.6.
+  for (let i = 0; i < pos.count; i += 1) {
+    let z = pos.getZ(i);
+    if (z < 0.6) { pos.setZ(i, 0.6); continue; }
+    z = 0.6 + ((z - 0.6) / (1.225 - 0.6)) * (1.208 - 0.6);
+    pos.setZ(i, z);
+  }
+  pos.needsUpdate = true;
+  // 2. wedge profile (0.085u anterior -> 0 at z 0.6).
+  reprofileCiliary(mesh, (z) => (0.085 * Math.max(0, z - 0.6)) / 0.608, scleraInner);
+}
+
+/** Phase 4: rebuild the ciliary processes as `ridgeCount` discrete radial
+ *  ridges on the anterior inner face of the ciliary body (pars plicata). Each
+ *  ridge is a thin triangular prism projecting inward by `H`. */
+function buildCiliaryProcessesRidges(scleraInner, tBody, ridgeCount) {
+  const z0 = 0.908; // pars plicata posterior edge
+  const z1 = 1.208; // anterior edge
+  const H = 0.12;   // ridge height (0.8 mm)
+  const w = 0.04;   // ridge half-width (radians) ~0.5mm arc at r~0.9
+  const positions = [];
+  const tri = (a, b, c) => { positions.push(a[0], a[1], a[2], b[0], b[1], b[2], c[0], c[1], c[2]); };
+  const vert = (theta, z, rInset) => {
+    const r = scleraInner(z) - tBody(z) - rInset; // rInset 0=outer(attached), H=inner tip
+    return [Math.cos(theta) * r, Math.sin(theta) * r, z];
+  };
+  for (let i = 0; i < ridgeCount; i += 1) {
+    const th = (i / ridgeCount) * Math.PI * 2;
+    const fO1 = vert(th - w, z1, 0);
+    const fO2 = vert(th + w, z1, 0);
+    const fI = vert(th, z1, H);
+    const bO1 = vert(th - w, z0, 0);
+    const bO2 = vert(th + w, z0, 0);
+    const bI = vert(th, z0, H);
+    tri(fO1, fO2, fI); // front
+    tri(bO1, bI, bO2); // back
+    tri(fO1, fI, bO1); tri(bO1, fI, bI); // inner side
+    tri(fO2, bO2, fI); tri(fI, bO2, bI); // inner side 2
+    tri(fO1, bO1, fO2); tri(bO1, bO2, fO2); // outer side
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.Float32BufferAttribute(new Float32Array(positions), 3));
+  geo.computeVertexNormals();
+  const mesh = new THREE.Mesh(geo);
+  mesh.name = "VH_M_ciliary_processes_L";
+  mesh.frustumCulled = false;
+  return mesh;
+}
+
+/** Phase 3b: re-profile the cornea to a UNIFORM thickness and make its inner
+ *  (posterior) surface meet the aqueous humor (anterior chamber front). The
+ *  outer (anterior) surface stays fixed; the inner surface is set to
+ *  `front - thickness` and the aqueous front surface is pulled to the same
+ *  curve so the two are flush. */
+function reprofileCornea(corneaMesh, thicknessCenter, thicknessEdge) {
+  if (!corneaMesh) return;
+  const RB = 48;
+  const AB = 64;
+  const pos = corneaMesh.geometry.getAttribute("position");
+  let nor = corneaMesh.geometry.getAttribute("normal");
+  if (!nor) { corneaMesh.geometry.computeVertexNormals(); nor = corneaMesh.geometry.getAttribute("normal"); }
+  let rmax = 0;
+  for (let i = 0; i < pos.count; i += 1) {
+    const r = Math.hypot(pos.getX(i), pos.getY(i));
+    if (r > rmax) rmax = r;
+  }
+  // per-(r, angle) anterior-surface z. The cornea is ELLIPTICAL (nasal side
+  // sits higher than the temporal side), so a single per-r max ignored the
+  // asymmetry and collapsed the posterior surface onto the anterior one on
+  // the temporal side (the "touching" bug).
+  const front = new Array(RB * AB).fill(-1e9);
+  for (let i = 0; i < pos.count; i += 1) {
+    if (nor.getZ(i) <= 0.2) continue;
+    const r = Math.hypot(pos.getX(i), pos.getY(i));
+    const rb = Math.min(RB - 1, Math.floor((r / (rmax + 1e-6)) * RB));
+    let a = Math.atan2(pos.getY(i), pos.getX(i));
+    if (a < 0) a += Math.PI * 2;
+    const ab = Math.min(AB - 1, Math.floor((a / (Math.PI * 2)) * AB));
+    const idx = rb * AB + ab;
+    if (pos.getZ(i) > front[idx]) front[idx] = pos.getZ(i);
+  }
+  // fill empty bins along the angle (nearest-neighbour) for smooth sampling
+  for (let rb = 0; rb < RB; rb += 1) {
+    for (let ab = 0; ab < AB; ab += 1) {
+      if (front[rb * AB + ab] > -1e8) continue;
+      for (let d = 1; d < AB; d += 1) {
+        const l = (ab - d + AB) % AB;
+        const rr = (ab + d) % AB;
+        if (front[rb * AB + l] > -1e8) { front[rb * AB + ab] = front[rb * AB + l]; break; }
+        if (front[rb * AB + rr] > -1e8) { front[rb * AB + ab] = front[rb * AB + rr]; break; }
+      }
+    }
+  }
+  const frontAt = (r, a) => {
+    const rf = (r / (rmax + 1e-6)) * RB;
+    const r0 = Math.min(RB - 1, Math.max(0, Math.floor(rf)));
+    const r1 = Math.min(RB - 1, r0 + 1);
+    const rt = rf - r0;
+    const af = (a / (Math.PI * 2)) * AB;
+    const a0 = Math.min(AB - 1, Math.max(0, Math.floor(af)));
+    const a1 = (a0 + 1) % AB;
+    const at = af - a0;
+    const v00 = front[r0 * AB + a0];
+    const v01 = front[r0 * AB + a1];
+    const v10 = front[r1 * AB + a0];
+    const v11 = front[r1 * AB + a1];
+    const v0 = v00 * (1 - at) + v01 * at;
+    const v1 = v10 * (1 - at) + v11 * at;
+    return v0 * (1 - rt) + v1 * rt;
+  };
+  const thicknessAt = (r) => thicknessCenter + (thicknessEdge - thicknessCenter) * Math.min(1, r / rmax);
+  // Only the TRUE posterior surface (normal.z < -0.2). Each vertex follows the
+  // anterior surface AT ITS OWN ANGLE, so thickness stays uniform everywhere.
+  for (let i = 0; i < pos.count; i += 1) {
+    if (nor.getZ(i) >= -0.2) continue;
+    const x = pos.getX(i);
+    const y = pos.getY(i);
+    const r = Math.hypot(x, y);
+    let a = Math.atan2(y, x);
+    if (a < 0) a += Math.PI * 2;
+    pos.setZ(i, frontAt(r, a) - thicknessAt(r));
+  }
+  pos.needsUpdate = true;
+}
+
 (async () => {
   const LoopSubdivision = (await import("three-subdivide")).LoopSubdivision;
   const t0 = Date.now();
@@ -409,24 +703,71 @@ function buildCollectorChannels() {
   console.log(`loaded ${meshes.length} meshes (${Date.now() - t0}ms)`);
 
   let totalSub = 0;
-  // Plan v6 — per-angle remap (uniform scaling can't fix the elliptical
-  // SC/TM rings):
-  //  • SC: outer edge → ciliary body outer edge − 0.10 per angle (SC sits
-  //    INSIDE the ciliary body ring with visible tissue around it).
-  //  • TM: outer edge → SC inner edge − 0.005 per angle (full kiss, no gap).
-  // z: both stay on the ciliary body's posterior-rim plane (SC −0.30,
-  // TM −0.27 to align front edges).
+  // Phase 1: SC/TM belong at the iridocorneal angle (scleral sulcus / limbus),
+  // NOT inside the ciliary body ring; radial order must be TM INNER
+  // (anterior-chamber side) -> SC OUTER (scleral side). Original source had
+  // both floating centrally (SC r 0.68-0.87, TM r 0.66-0.89) with TM outside
+  // SC. relocateRing scales XY + shifts Z; narrowRingBand thins each ring to
+  // read as canal/meshwork while keeping the outer edge fixed.
   const scMesh = meshes.find((m) => m.name === "VH_M_schlemms_canal_L");
   const tmMesh = meshes.find((m) => m.name === "VH_M_trabecular_meshwork_L");
+  relocateRing(scMesh, 1.20, 0.10);   // SC -> r ~0.98-1.04, z ~1.29-1.36 (sulcus floor)
+  narrowRingBand(scMesh, 0.25);
+  relocateRing(tmMesh, 1.05, 0.12);   // TM -> r ~0.87-0.93, z ~1.28-1.38 (just inside SC)
+  narrowRingBand(tmMesh, 0.25);
+  console.log("relocated SC/TM to scleral sulcus (TM inner, SC outer)");
+
+  // Phase 2 — stretch the ciliary body to anatomical length (~5.6 mm) and keep
+  // it hugging the sclera. Anterior end (scleral spur, z 1.225) stays put;
+  // posterior end (ora serrata) extends from z 0.895 back to z 0.375. The
+  // ciliary processes stay in the anterior ~2 mm (pars plicata) so they keep
+  // facing the lens equator.
+  const scleraMesh = meshes.find((m) => m.name === "VH_M_sclera_L");
   const cbMesh = meshes.find((m) => m.name === "VH_M_ciliary_body_L");
-  remapRingToReference(scMesh, cbMesh, "outer", 0.1, -0.2);
-  // TM: inner wall kisses SC's OUTER wall (TM wraps outside SC), the tube is
-  // a thin strip (targetBand 0.04), and TM centers on SC's z layer (dz −0.18,
-  // vs SC −0.20 — TM is 0.03 thicker, so centering aligns both tubes coaxially
-  // and the TM inner arc fully hugs SC's outer surface).
-  // SC at CB − 0.10 + band 0.04 → TM outer lands at CB − 0.06: fully inside.
-  remapRingInnerToReference(tmMesh, scMesh, "outer", 0.005, 0.04, -0.18);
-  console.log("remapped SC (CB outer − 0.10, z−0.30) and TM (SC inner − 0.005, band ×0.5, z−0.27)");
+  const muscleMesh = meshes.find((m) => m.name === "VH_M_ciliary_muscle_L");
+  const procMesh = meshes.find((m) => m.name === "VH_M_ciliary_processes_L");
+  const scleraInner = buildScleraInnerProfile(scleraMesh, 0.2, 1.35, 64);
+  stretchRingAlongZ(cbMesh, 0.895, 1.207, 0.375, 1.207, scleraInner);
+  stretchRingAlongZ(muscleMesh, 0.935, 1.225, 0.375, 1.225, scleraInner);
+  stretchRingAlongZ(procMesh, 0.953, 1.157, 0.925, 1.225, scleraInner);
+  console.log("stretched ciliary body/muscle/processes to ~5.6mm meridional length");
+
+  // Phase 2b — retract ora serrata + choroid/retina anterior edges to the
+  // ciliary body's new posterior boundary (z ~0.375) so layers don't overlap.
+  const oraMesh = meshes.find((m) => m.name === "VH_M_ora_serrata_of_retina_L");
+  const choroidMesh = meshes.find((m) => m.name === "VH_M_optic_choroid_L");
+  const retinaMesh = meshes.find((m) => m.name === "VH_M_retina_L");
+  stretchRingAlongZ(oraMesh, 0.904, 1.035, 0.36, 0.42, scleraInner);
+  retractAnteriorZ(choroidMesh, 0.375, 0.42, scleraInner);
+  retractAnteriorZ(retinaMesh, 0.375, 0.42, scleraInner);
+  console.log("retracted ora serrata + choroid/retina anterior to z ~0.4");
+
+  // Phase 3a/3b — uniform cornea thickness (~0.5 mm) + inner surface flush
+  // with the aqueous humor front (anterior chamber).
+  const corneaMesh = meshes.find((m) => m.name === "VH_M_cornea_L");
+  reprofileCornea(corneaMesh, 0.075, 0.105);
+  console.log("re-profiled cornea thickness (0.5->0.7mm gradient, normal-based)");
+
+  // Phase 4 — re-profile ciliary cross-sections to the anatomical triangle.
+  // body: piecewise triangle (pars plana 0->0.8mm, pars plicata 0.8->1.25mm).
+  // muscle: wedge (0.56mm anterior -> 0), shortened to ~4mm, outer portion only.
+  // processes: rebuilt as 70 discrete radial ridges (0.8mm high) on the
+  // anterior inner face of the body (pars plicata).
+  const tBody = (z) => {
+    if (z >= 0.908) return 0.12 + (0.07 * (z - 0.908)) / 0.3;
+    if (z >= 0.375) return (0.12 * (z - 0.375)) / 0.533;
+    return 0;
+  };
+  reprofileCiliary(cbMesh, tBody, scleraInner);
+  reprofileMuscle(muscleMesh, scleraInner);
+  const newProc = buildCiliaryProcessesRidges(scleraInner, tBody, 70);
+  newProc.userData.baked = true;
+  const procParent = procMesh.parent;
+  procParent.remove(procMesh);
+  procParent.add(newProc);
+  const pi = meshes.indexOf(procMesh);
+  if (pi >= 0) meshes[pi] = newProc;
+  console.log("re-profiled ciliary body/muscle + rebuilt processes (70 ridges)");
 
   for (const mesh of meshes) {
     const id = PART_FROM_MESH[mesh.name] || null;

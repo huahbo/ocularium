@@ -527,7 +527,7 @@ button:focus-visible, input:focus-visible, canvas:focus-visible {
 }
 .switch { width: 29px; height: 17px; padding: 2px; border-radius: 99px; background: #c8c2bb; }
 .switch i { display: block; width: 13px; height: 13px; border-radius: 50%; background: white; box-shadow: 0 1px 4px rgba(0,0,0,.17); }
-.switch.on { background: #70a9cb; }
+.switch.on { background: #4a9eff; }
 .switch.on i { margin-left: 12px; }
 .view-caption { position: absolute; left: 98px; bottom: 17px; display: flex; flex-direction: column; gap: 2px; color: var(--muted); font-size: 9px; text-transform: uppercase; letter-spacing: .1em; }
 .view-caption strong { color: var(--ink); font: 500 13px var(--font-serif), serif; text-transform: none; letter-spacing: 0; }

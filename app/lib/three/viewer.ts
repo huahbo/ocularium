@@ -1215,17 +1215,17 @@ export class AnatomyViewer {
     this.flowActive = true;
     // Aqueous path, in the model's actual FIT_SIZE coordinates:
     // +Z = front (cornea at z≈1.9), -Z = back (retina at z≈-1.78);
-    // ciliary body [0.85,0,0.92] produces → posterior chamber → pupil
-    // [0,0,1.1] → anterior chamber → iridocorneal angle → trabecular
-    // meshwork [0,-0.855,0] → Schlemm's canal [0,-0.285,0] (both below).
+    // ciliary body (pars plicata) produces -> posterior chamber -> pupil ->
+    // anterior chamber -> iridocorneal angle -> trabecular meshwork (r~0.9,
+    // z~1.33) -> Schlemm's canal (r~1.0, z~1.33), both at the angle.
     this.flowCurve = new THREE.CatmullRomCurve3([
-      new THREE.Vector3(0.7, 0.2, 0.8),    // ciliary body (production site)
-      new THREE.Vector3(0.35, 0.1, 0.95),  // posterior chamber (behind iris)
+      new THREE.Vector3(0.7, 0.2, 0.95),   // ciliary body (production site, pars plicata)
+      new THREE.Vector3(0.35, 0.1, 1.0),   // posterior chamber (behind iris)
       new THREE.Vector3(0.0, 0.0, 1.12),   // through the pupil
       new THREE.Vector3(0.15, -0.1, 1.4),  // anterior chamber (in front of iris)
-      new THREE.Vector3(0.3, -0.5, 0.85),  // iridocorneal angle (down)
-      new THREE.Vector3(0.1, -0.8, 0.35),  // trabecular meshwork
-      new THREE.Vector3(0.0, -0.55, 0.05), // Schlemm's canal (circumferential)
+      new THREE.Vector3(0.65, -0.2, 1.36), // iridocorneal angle
+      new THREE.Vector3(0.9, 0.0, 1.33),   // trabecular meshwork (r~0.9, at angle)
+      new THREE.Vector3(1.0, 0.0, 1.33),   // Schlemm's canal (r~1.0, at angle)
     ]);
     const count = 40;
     this.flowOffsets = Array.from({ length: count }, (_, i) => i / count);
