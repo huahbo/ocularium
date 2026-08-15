@@ -741,6 +741,53 @@ function thinSclera(scleraMesh, thicknessFn) {
   pos.needsUpdate = true;
 }
 
+/** Phase 6: set a ring band's RADIAL thickness to a fixed value, keeping the
+ *  outer edge fixed and moving the inner edge to `outer - targetBand`. Used to
+ *  match the limbus (corneoscleral junction) shell thickness to the cornea and
+ *  sclera (all 1.17 mm). */
+function reprofileRingBand(mesh, targetBand) {
+  if (!mesh) return;
+  const AB = 64;
+  const pos = mesh.geometry.getAttribute("position");
+  const inner = new Array(AB).fill(1e9);
+  const outer = new Array(AB).fill(0);
+  for (let i = 0; i < pos.count; i += 1) {
+    const x = pos.getX(i);
+    const y = pos.getY(i);
+    const r = Math.hypot(x, y);
+    if (r < 0.3) continue;
+    let a = Math.atan2(y, x);
+    if (a < 0) a += Math.PI * 2;
+    const ab = Math.min(AB - 1, Math.floor((a / (Math.PI * 2)) * AB));
+    if (r < inner[ab]) inner[ab] = r;
+    if (r > outer[ab]) outer[ab] = r;
+  }
+  const edgeAt = (arr, a) => {
+    const f = (a / (Math.PI * 2)) * AB;
+    const i = Math.min(AB - 1, Math.max(0, Math.floor(f)));
+    const i2 = (i + 1) % AB;
+    const t = f - i;
+    return arr[i] * (1 - t) + arr[i2] * t;
+  };
+  for (let i = 0; i < pos.count; i += 1) {
+    const x = pos.getX(i);
+    const y = pos.getY(i);
+    const r = Math.hypot(x, y);
+    if (r < 0.3) continue;
+    let a = Math.atan2(y, x);
+    if (a < 0) a += Math.PI * 2;
+    const o = edgeAt(outer, a);
+    const inn = edgeAt(inner, a);
+    const band = o - inn;
+    const f = band > 1e-4 ? Math.min(1, Math.max(0, (o - r) / band)) : 0;
+    const rNew = o - f * targetBand;
+    const c = r > 1e-6 ? rNew / r : 0;
+    pos.setX(i, x * c);
+    pos.setY(i, y * c);
+  }
+  pos.needsUpdate = true;
+}
+
 (async () => {
   const LoopSubdivision = (await import("three-subdivide")).LoopSubdivision;
   const t0 = Date.now();
@@ -792,8 +839,8 @@ function thinSclera(scleraMesh, thicknessFn) {
   // Phase 3a/3b — uniform cornea thickness (~0.5 mm) + inner surface flush
   // with the aqueous humor front (anterior chamber).
   const corneaMesh = meshes.find((m) => m.name === "VH_M_cornea_L");
-  reprofileCornea(corneaMesh, 0.075, 0.105);
-  console.log("re-profiled cornea thickness (0.5->0.7mm gradient, normal-based)");
+  reprofileCornea(corneaMesh, 0.125, 0.175);
+  console.log("re-profiled cornea thickness (0.83->1.17mm gradient, normal-based)");
 
   // Phase 4 — re-profile ciliary cross-sections to the anatomical triangle.
   // body: piecewise triangle (pars plana 0->0.8mm, pars plicata 0.8->1.25mm).
@@ -816,15 +863,17 @@ function thinSclera(scleraMesh, thicknessFn) {
   if (pi >= 0) meshes[pi] = newProc;
   console.log("re-profiled ciliary body/muscle + rebuilt processes (70 ridges)");
 
-  // Phase 5 — thin the sclera to its real thickness (equator ~0.4 mm, limbus
-  // 0.5 mm, posterior pole 1.0 mm). The HRA sclera was ~3x too thick, which
-  // made the correctly sized cornea look too thin by comparison.
-  const scleraThickness = (z) => {
-    if (z >= 0) return 0.06 + (0.075 - 0.06) * Math.min(1, z / 1.3);
-    return 0.06 + (0.15 - 0.06) * Math.min(1, -z / 1.5);
-  };
+  // Phase 5 — set the sclera to a uniform 1.17 mm shell (matching the cornea
+  // edge), per user spec.
+  const scleraThickness = () => 0.176;
   thinSclera(scleraMesh, scleraThickness);
-  console.log("thinned sclera to real thickness (0.4mm equator)");
+  console.log("set sclera to uniform 1.17mm");
+
+  // Phase 6 — set the limbus (corneoscleral junction) radial shell thickness
+  // to 1.17 mm, matching the cornea edge and sclera.
+  const limbusMesh = meshes.find((m) => m.name === "VH_M_corneo_scleral_junction_L");
+  reprofileRingBand(limbusMesh, 0.176);
+  console.log("set limbus radial thickness to 1.17mm");
 
   for (const mesh of meshes) {
     const id = PART_FROM_MESH[mesh.name] || null;
