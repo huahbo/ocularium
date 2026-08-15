@@ -788,6 +788,23 @@ function reprofileRingBand(mesh, targetBand) {
   pos.needsUpdate = true;
 }
 
+/** Phase 7: shift an inner shell (choroid / retina) radially outward by a
+ *  fixed amount so it re-attaches to the (thinned) sclera inner surface. */
+function shiftShellOutward(mesh, shift) {
+  if (!mesh) return;
+  const pos = mesh.geometry.getAttribute("position");
+  for (let i = 0; i < pos.count; i += 1) {
+    const x = pos.getX(i);
+    const y = pos.getY(i);
+    const r = Math.hypot(x, y);
+    if (r < 0.3) continue;
+    const c = (r + shift) / r;
+    pos.setX(i, x * c);
+    pos.setY(i, y * c);
+  }
+  pos.needsUpdate = true;
+}
+
 (async () => {
   const LoopSubdivision = (await import("three-subdivide")).LoopSubdivision;
   const t0 = Date.now();
@@ -874,6 +891,13 @@ function reprofileRingBand(mesh, targetBand) {
   const limbusMesh = meshes.find((m) => m.name === "VH_M_corneo_scleral_junction_L");
   reprofileRingBand(limbusMesh, 0.176);
   console.log("set limbus radial thickness to 1.17mm");
+
+  // Phase 7 — re-attach choroid/retina to the thinned sclera inner surface.
+  const choroidMesh = meshes.find((m) => m.name === "VH_M_optic_choroid_L");
+  const retinaMesh = meshes.find((m) => m.name === "VH_M_retina_L");
+  shiftShellOutward(choroidMesh, 0.03);
+  shiftShellOutward(retinaMesh, 0.10);
+  console.log("shifted choroid/retina to re-attach to sclera");
 
   for (const mesh of meshes) {
     const id = PART_FROM_MESH[mesh.name] || null;
