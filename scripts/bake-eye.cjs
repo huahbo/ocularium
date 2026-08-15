@@ -893,8 +893,6 @@ function shiftShellOutward(mesh, shift) {
   console.log("set limbus radial thickness to 1.17mm");
 
   // Phase 7 — re-attach choroid/retina to the thinned sclera inner surface.
-  const choroidMesh = meshes.find((m) => m.name === "VH_M_optic_choroid_L");
-  const retinaMesh = meshes.find((m) => m.name === "VH_M_retina_L");
   shiftShellOutward(choroidMesh, 0.03);
   shiftShellOutward(retinaMesh, 0.10);
   console.log("shifted choroid/retina to re-attach to sclera");
