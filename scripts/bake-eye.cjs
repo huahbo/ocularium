@@ -694,6 +694,53 @@ function reprofileCornea(corneaMesh, thicknessCenter, thicknessEdge) {
   pos.needsUpdate = true;
 }
 
+/** Phase 5: thin the sclera shell to its real thickness. The HRA sclera is
+ *  ~1.3-2.3 mm thick (equator ~1.3 mm) vs the real ~0.4-1.0 mm (equator 0.4 mm,
+ *  limbus 0.5 mm, posterior pole 1.0 mm). Move the INNER surface outward so the
+ *  shell thickness matches `thicknessFn(z)`; the outer surface stays fixed. */
+function thinSclera(scleraMesh, thicknessFn) {
+  if (!scleraMesh) return;
+  const RB = 48;
+  const pos = scleraMesh.geometry.getAttribute("position");
+  let nor = scleraMesh.geometry.getAttribute("normal");
+  if (!nor) { scleraMesh.geometry.computeVertexNormals(); nor = scleraMesh.geometry.getAttribute("normal"); }
+  let zmin = 1e9;
+  let zmax = -1e9;
+  for (let i = 0; i < pos.count; i += 1) {
+    const z = pos.getZ(i);
+    zmin = Math.min(zmin, z);
+    zmax = Math.max(zmax, z);
+  }
+  const outer = new Array(RB).fill(0);
+  for (let i = 0; i < pos.count; i += 1) {
+    const r = Math.hypot(pos.getX(i), pos.getY(i));
+    const b = Math.min(RB - 1, Math.floor(((pos.getZ(i) - zmin) / (zmax - zmin)) * RB));
+    if (r > outer[b]) outer[b] = r;
+  }
+  const outerAt = (z) => {
+    const f = ((z - zmin) / (zmax - zmin)) * RB;
+    const i = Math.min(RB - 1, Math.max(0, Math.floor(f)));
+    const i2 = Math.min(RB - 1, i + 1);
+    const t = f - i;
+    return outer[i] * (1 - t) + outer[i2] * t;
+  };
+  for (let i = 0; i < pos.count; i += 1) {
+    const x = pos.getX(i);
+    const y = pos.getY(i);
+    const z = pos.getZ(i);
+    const r = Math.hypot(x, y);
+    if (r < 0.3) continue;
+    // radial normal component: >0 = outward (outer surface), <0 = inward (inner)
+    const dot = (nor.getX(i) * x + nor.getY(i) * y) / r;
+    if (dot >= 0) continue; // inner surface only
+    const target = outerAt(z) - thicknessFn(z);
+    const c = r > 1e-6 ? target / r : 0;
+    pos.setX(i, x * c);
+    pos.setY(i, y * c);
+  }
+  pos.needsUpdate = true;
+}
+
 (async () => {
   const LoopSubdivision = (await import("three-subdivide")).LoopSubdivision;
   const t0 = Date.now();
@@ -768,6 +815,16 @@ function reprofileCornea(corneaMesh, thicknessCenter, thicknessEdge) {
   const pi = meshes.indexOf(procMesh);
   if (pi >= 0) meshes[pi] = newProc;
   console.log("re-profiled ciliary body/muscle + rebuilt processes (70 ridges)");
+
+  // Phase 5 — thin the sclera to its real thickness (equator ~0.4 mm, limbus
+  // 0.5 mm, posterior pole 1.0 mm). The HRA sclera was ~3x too thick, which
+  // made the correctly sized cornea look too thin by comparison.
+  const scleraThickness = (z) => {
+    if (z >= 0) return 0.06 + (0.075 - 0.06) * Math.min(1, z / 1.3);
+    return 0.06 + (0.15 - 0.06) * Math.min(1, -z / 1.5);
+  };
+  thinSclera(scleraMesh, scleraThickness);
+  console.log("thinned sclera to real thickness (0.4mm equator)");
 
   for (const mesh of meshes) {
     const id = PART_FROM_MESH[mesh.name] || null;
