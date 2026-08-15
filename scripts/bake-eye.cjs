@@ -1002,14 +1002,20 @@ function attachShellToInner(mesh, outerFn, thickness) {
 }
 
 /** Phase 3b: pull the aqueous humor's ANTERIOR surface onto the cornea's new
- *  inner (posterior) surface so the two are flush (anterior chamber front).
- *  Sampled per-(r, angle): cornea inner z (min-z per bin, true posterior),
- *  aqueous pushed back where it crosses, pulled forward where it lags. */
+ *  inner (posterior) surface so the two are flush (anterior chamber front),
+ *  and clamp its SIDE wall inside the cornea edge. Sampled per-(r, angle):
+ *  cornea inner z (min-z per bin, true posterior), aqueous pushed back where
+ *  it crosses, pulled forward where it lags; plus a per-z clamp on r so the
+ *  aqueous never pokes OUT past the (shrunk) cornea — the old bug: aqueous
+ *  kept its 13.5mm-era radius and showed as a crescent ring outside the
+ *  11.5mm cornea in cross-sections. */
 function flushAqueousToCornea(aqueousMesh, corneaMesh) {
   if (!aqueousMesh || !corneaMesh) return;
   const RB = 48;
   const AB = 64;
   const cpos = corneaMesh.geometry.getAttribute("position");
+  let cnor = corneaMesh.geometry.getAttribute("normal");
+  if (!cnor) { corneaMesh.geometry.computeVertexNormals(); cnor = corneaMesh.geometry.getAttribute("normal"); }
   let crmax = 0;
   for (let i = 0; i < cpos.count; i += 1) {
     const r = Math.hypot(cpos.getX(i), cpos.getY(i));
@@ -1055,12 +1061,52 @@ function flushAqueousToCornea(aqueousMesh, corneaMesh) {
     const v1 = v10 * (1 - at) + v11 * at;
     return v0 * (1 - rt) + v1 * rt;
   };
+  // per-z max r of the cornea's TRUE INNER surface (normal.z < -0.2) — the
+  // side-wall limit for the aqueous.
+  let czmin = 1e9;
+  let czmax = -1e9;
+  for (let i = 0; i < cpos.count; i += 1) {
+    const z = cpos.getZ(i);
+    czmin = Math.min(czmin, z);
+    czmax = Math.max(czmax, z);
+  }
+  const ZB = 80;
+  const cInR = new Array(ZB).fill(0);
+  for (let i = 0; i < cpos.count; i += 1) {
+    if (cnor.getZ(i) >= -0.2) continue; // inner only
+    const z = cpos.getZ(i);
+    const r = Math.hypot(cpos.getX(i), cpos.getY(i));
+    const b = Math.min(ZB - 1, Math.max(0, Math.floor(((z - czmin) / (czmax - czmin + 1e-6)) * ZB)));
+    if (r > cInR[b]) cInR[b] = r;
+  }
+  for (let b = 0; b < ZB; b += 1) {
+    if (cInR[b] > 1e-4) continue;
+    for (let j = 1; j < ZB; j += 1) {
+      if (b - j >= 0 && cInR[b - j] > 1e-4) { cInR[b] = cInR[b - j]; break; }
+      if (b + j < ZB && cInR[b + j] > 1e-4) { cInR[b] = cInR[b + j]; break; }
+    }
+  }
+  const cInRAt = (z) => {
+    const f = ((z - czmin) / (czmax - czmin + 1e-6)) * ZB;
+    const i = Math.min(ZB - 1, Math.max(0, Math.floor(f)));
+    const i2 = Math.min(ZB - 1, i + 1);
+    const t = f - i;
+    return cInR[i] * (1 - t) + cInR[i2] * t;
+  };
   const pos = aqueousMesh.geometry.getAttribute("position");
   const GAP = 0.005; // ~0.03mm, avoid z-fighting with the cornea inner face
   for (let i = 0; i < pos.count; i += 1) {
     const x = pos.getX(i);
     const y = pos.getY(i);
+    const z = pos.getZ(i);
     const r = Math.hypot(x, y);
+    // side wall: never exceed the cornea's inner-surface radius at this z
+    const rMax = cInRAt(z);
+    if (r > rMax - GAP && rMax > 0.3) {
+      const c = (rMax - GAP) / r;
+      pos.setX(i, x * c);
+      pos.setY(i, y * c);
+    }
     if (r > crmax) continue;
     let a = Math.atan2(y, x);
     if (a < 0) a += Math.PI * 2;
@@ -1072,11 +1118,47 @@ function flushAqueousToCornea(aqueousMesh, corneaMesh) {
 
 /** Phase 6: attach the limbus (corneoscleral junction) to the sclera OUTER
  *  surface — outer-surface vertices land exactly on sclOutFull(z), inner
- *  vertices 1.17 mm (0.176u) radially inside it. Fixes the limbus floating
- *  ~0.5-0.9 mm inside the sclera (old code only thinned its band, never
- *  attached it). */
-function attachLimbusToSclera(limbusMesh, sclOutFull) {
+ *  vertices land on the CORNEA's outer surface at the same z (the limbus is
+ *  the transition band between the 11.5 mm cornea and the sclera, so its
+ *  inner face must follow the cornea edge — pinning it to
+ *  sclOutFull − 1.17 mm left a 0.3-1.2 mm crack at the corneoscleral
+ *  junction). Fixes the limbus floating inside the sclera AND the crack. */
+function attachLimbusToSclera(limbusMesh, sclOutFull, corneaMesh) {
   if (!limbusMesh) return;
+  // sample the cornea's OUTER surface per-z max-r (anterior normal.z > 0.2)
+  const ZB = 80;
+  const cpos = corneaMesh.geometry.getAttribute("position");
+  let cnor = corneaMesh.geometry.getAttribute("normal");
+  if (!cnor) { corneaMesh.geometry.computeVertexNormals(); cnor = corneaMesh.geometry.getAttribute("normal"); }
+  let czmin = 1e9;
+  let czmax = -1e9;
+  for (let i = 0; i < cpos.count; i += 1) {
+    const z = cpos.getZ(i);
+    czmin = Math.min(czmin, z);
+    czmax = Math.max(czmax, z);
+  }
+  const cOut = new Array(ZB).fill(0);
+  for (let i = 0; i < cpos.count; i += 1) {
+    if (cnor.getZ(i) <= 0.2) continue;
+    const z = cpos.getZ(i);
+    const r = Math.hypot(cpos.getX(i), cpos.getY(i));
+    const b = Math.min(ZB - 1, Math.max(0, Math.floor(((z - czmin) / (czmax - czmin + 1e-6)) * ZB)));
+    if (r > cOut[b]) cOut[b] = r;
+  }
+  for (let b = 0; b < ZB; b += 1) {
+    if (cOut[b] > 1e-4) continue;
+    for (let j = 1; j < ZB; j += 1) {
+      if (b - j >= 0 && cOut[b - j] > 1e-4) { cOut[b] = cOut[b - j]; break; }
+      if (b + j < ZB && cOut[b + j] > 1e-4) { cOut[b] = cOut[b + j]; break; }
+    }
+  }
+  const cOutAt = (z) => {
+    const f = ((z - czmin) / (czmax - czmin + 1e-6)) * ZB;
+    const i = Math.min(ZB - 1, Math.max(0, Math.floor(f)));
+    const i2 = Math.min(ZB - 1, i + 1);
+    const t = f - i;
+    return cOut[i] * (1 - t) + cOut[i2] * t;
+  };
   const pos = limbusMesh.geometry.getAttribute("position");
   let nor = limbusMesh.geometry.getAttribute("normal");
   if (!nor) { limbusMesh.geometry.computeVertexNormals(); nor = limbusMesh.geometry.getAttribute("normal"); }
@@ -1087,10 +1169,38 @@ function attachLimbusToSclera(limbusMesh, sclOutFull) {
     const r = Math.hypot(x, y);
     if (r < 0.3) continue;
     const dot = (nor.getX(i) * x + nor.getY(i) * y) / r;
-    const target = sclOutFull(z) - (dot < -0.05 ? 0.176 : 0);
+    // outer: sclera outer surface; inner: cornea outer surface (transition band)
+    const target = dot >= -0.05 ? sclOutFull(z) : Math.max(cOutAt(z), 0.3);
     const c = r > 1e-6 ? target / r : 0;
     pos.setX(i, x * c);
     pos.setY(i, y * c);
+  }
+  pos.needsUpdate = true;
+}
+
+/** Phase 7b: trim the posterior "tube" that HRA gives choroid/retina at the
+ *  optic-nerve foramen. The raw mesh extends BACK through the sclera's hole
+ *  to z≈−11.6 AND pokes out of the eyeball (choroid r 7.81mm at z=−10.9 vs
+ *  sclera outer 6.68mm). Vertices behind `zClip` are flattened onto the
+ *  zClip plane with r clamped inside the sclera outer surface, leaving a
+ *  smooth lip around the foramen (the hole itself stays open — the optic
+ *  disc covers it). */
+function trimPosteriorTube(mesh, sclOutFull, zClip) {
+  if (!mesh) return;
+  const pos = mesh.geometry.getAttribute("position");
+  for (let i = 0; i < pos.count; i += 1) {
+    const z = pos.getZ(i);
+    if (z >= zClip) continue;
+    const x = pos.getX(i);
+    const y = pos.getY(i);
+    const r = Math.hypot(x, y);
+    if (r < 0.3) { pos.setZ(i, zClip); continue; } // tube tip: flatten, keep r
+    const rMax = sclOutFull(zClip) - 0.05; // stay inside the sclera outer lip
+    const rNew = Math.min(r, rMax);
+    const c = r > 1e-6 ? rNew / r : 0;
+    pos.setX(i, x * c);
+    pos.setY(i, y * c);
+    pos.setZ(i, zClip);
   }
   pos.needsUpdate = true;
 }
@@ -1135,6 +1245,61 @@ function attachRingToScleraInner(mesh, sclInFull, offset, zMinNew, zMaxNew) {
     pos.setX(i, x * c);
     pos.setY(i, y * c);
     pos.setZ(i, zNew);
+  }
+  pos.needsUpdate = true;
+}
+
+/** Phase 6b: attach the iris ROOT to the ciliary body's inner face. The iris
+ *  disc (rmax 5.61mm at z 7.62) ends 0.1-0.3mm short of the ciliary body's
+ *  inner edge (5.73mm), which reads as a crack around the iris in
+ *  cross-sections. Outer iris vertices (z < 8.0mm) are pushed radially onto
+ *  the ciliary body's inner surface. */
+function attachIrisRootToCiliary(irisMesh, ciliaryMesh) {
+  if (!irisMesh || !ciliaryMesh) return;
+  const ZB = 40;
+  const cpos = ciliaryMesh.geometry.getAttribute("position");
+  let czmin = 1e9;
+  let czmax = -1e9;
+  for (let i = 0; i < cpos.count; i += 1) {
+    const z = cpos.getZ(i);
+    czmin = Math.min(czmin, z);
+    czmax = Math.max(czmax, z);
+  }
+  const cInR = new Array(ZB).fill(1e9);
+  for (let i = 0; i < cpos.count; i += 1) {
+    const z = cpos.getZ(i);
+    const r = Math.hypot(cpos.getX(i), cpos.getY(i));
+    if (r < 0.3) continue;
+    const b = Math.min(ZB - 1, Math.max(0, Math.floor(((z - czmin) / (czmax - czmin + 1e-6)) * ZB)));
+    if (r < cInR[b]) cInR[b] = r;
+  }
+  for (let b = 0; b < ZB; b += 1) {
+    if (cInR[b] < 1e8) continue;
+    for (let j = 1; j < ZB; j += 1) {
+      if (b - j >= 0 && cInR[b - j] < 1e8) { cInR[b] = cInR[b - j]; break; }
+      if (b + j < ZB && cInR[b + j] < 1e8) { cInR[b] = cInR[b + j]; break; }
+    }
+  }
+  const cInRAt = (z) => {
+    const f = ((z - czmin) / (czmax - czmin + 1e-6)) * ZB;
+    const i = Math.min(ZB - 1, Math.max(0, Math.floor(f)));
+    const i2 = Math.min(ZB - 1, i + 1);
+    const t = f - i;
+    return cInR[i] * (1 - t) + cInR[i2] * t;
+  };
+  const pos = irisMesh.geometry.getAttribute("position");
+  for (let i = 0; i < pos.count; i += 1) {
+    const x = pos.getX(i);
+    const y = pos.getY(i);
+    const z = pos.getZ(i);
+    const r = Math.hypot(x, y);
+    if (r < 0.3 || z > 1.21) continue; // only the root band (z < 8.0mm)
+    const target = cInRAt(z) - 0.01; // kiss the ciliary inner face
+    if (r < target) {
+      const c = target / r;
+      pos.setX(i, x * c);
+      pos.setY(i, y * c);
+    }
   }
   pos.needsUpdate = true;
 }
@@ -1202,7 +1367,7 @@ function attachVitreousToLens(vitreousMesh, lensMesh) {
 
   // ---- P0: sclera 外表面 profile(外表面永不变薄) ----
   const scleraMesh = meshes.find((m) => m.name === "VH_M_sclera_L");
-  const sclOutFull = buildFullOuterProfile(scleraMesh, -1.4, 1.6, 80);
+  const sclOutFull = buildFullOuterProfile(scleraMesh, -2.0, 1.6, 100);
   console.log("P0: sclera outer profile built");
 
   // ---- P1: 先变薄 sclera 到 1.17mm(外表面不动) ----
@@ -1210,7 +1375,7 @@ function attachVitreousToLens(vitreousMesh, lensMesh) {
   console.log("P1: sclera thinned to 1.17mm");
 
   // ---- P2: 变薄后的 sclera 内表面 profile(全 z 范围) ----
-  const sclInFull = buildFullInnerProfile(scleraMesh, -1.4, 1.6, 80);
+  const sclInFull = buildFullInnerProfile(scleraMesh, -2.0, 1.6, 100);
   console.log("P2: sclera inner profile built (post-thin)");
 
   // ---- P3: 角膜 — 直径 13.5→11.5mm + 法向厚度重建 + aqueous flush ----
@@ -1221,10 +1386,10 @@ function attachVitreousToLens(vitreousMesh, lensMesh) {
   flushAqueousToCornea(aqueousMesh, corneaMesh);
   console.log("P3: cornea diameter 11.5mm + normal-thickness rebuild + aqueous flush");
 
-  // ---- P4: limbus 外表面贴 sclera 外表面, 内表面 1.17mm ----
+  // ---- P4: limbus 内表面贴角膜外表面(消除角巩膜缘裂口), 外表面贴 sclera ----
   const limbusMesh = meshes.find((m) => m.name === "VH_M_corneo_scleral_junction_L");
-  attachLimbusToSclera(limbusMesh, sclOutFull);
-  console.log("P4: limbus attached to sclera outer surface");
+  attachLimbusToSclera(limbusMesh, sclOutFull, corneaMesh);
+  console.log("P4: limbus attached (outer=sclera, inner=cornea edge)");
 
   // ---- P5: SC/TM 按变薄后 sclera 内表面定位(保留环带形态, 非正圆) ----
   // 解剖: SC 位于角巩膜缘巩膜组织内(~0.33mm), TM 在前房角侧
@@ -1248,13 +1413,17 @@ function attachVitreousToLens(vitreousMesh, lensMesh) {
   };
   reprofileCiliary(cbMesh, tBody, sclInFull);
   reprofileMuscle(muscleMesh, sclInFull);
-  console.log("P6: ciliary body/muscle stretched + re-profiled; processes kept original");
+  const irisMesh = meshes.find((m) => m.name === "VH_M_iris_L");
+  attachIrisRootToCiliary(irisMesh, cbMesh);
+  console.log("P6: ciliary body/muscle stretched + re-profiled; processes kept original; iris root attached");
 
   // ---- P7: choroid/retina 前缘回缩到 ora serrata(z~0.4), 再薄化贴变薄后 sclera 内表面 ----
   const choroidMesh = meshes.find((m) => m.name === "VH_M_optic_choroid_L");
   const retinaMesh = meshes.find((m) => m.name === "VH_M_retina_L");
   retractAnteriorZ(choroidMesh, 0.375, 0.42, sclInFull); // HRA 前缘伸到 z 1.11u, 必须收回
   retractAnteriorZ(retinaMesh, 0.375, 0.42, sclInFull);
+  trimPosteriorTube(choroidMesh, sclOutFull, -1.70); // 后极视神经孔管: 压平到孔口平面 (z=-11.3mm)
+  trimPosteriorTube(retinaMesh, sclOutFull, -1.70);
   attachShellToInner(choroidMesh, sclInFull, 0.0451); // 0.3mm
   attachShellToInner(retinaMesh, (z) => sclInFull(z) - 0.0451, 0.0301); // 0.2mm, 贴 choroid 内
   console.log("P7: choroid/retina anterior retracted to ora serrata + attached (0.3/0.2mm)");
