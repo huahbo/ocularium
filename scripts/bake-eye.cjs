@@ -1250,12 +1250,14 @@ function attachVitreousToLens(vitreousMesh, lensMesh) {
   reprofileMuscle(muscleMesh, sclInFull);
   console.log("P6: ciliary body/muscle stretched + re-profiled; processes kept original");
 
-  // ---- P7: choroid/retina 薄化 + 贴变薄后 sclera 内表面 ----
+  // ---- P7: choroid/retina 前缘回缩到 ora serrata(z~0.4), 再薄化贴变薄后 sclera 内表面 ----
   const choroidMesh = meshes.find((m) => m.name === "VH_M_optic_choroid_L");
   const retinaMesh = meshes.find((m) => m.name === "VH_M_retina_L");
+  retractAnteriorZ(choroidMesh, 0.375, 0.42, sclInFull); // HRA 前缘伸到 z 1.11u, 必须收回
+  retractAnteriorZ(retinaMesh, 0.375, 0.42, sclInFull);
   attachShellToInner(choroidMesh, sclInFull, 0.0451); // 0.3mm
   attachShellToInner(retinaMesh, (z) => sclInFull(z) - 0.0451, 0.0301); // 0.2mm, 贴 choroid 内
-  console.log("P7: choroid (0.3mm) / retina (0.2mm) attached to sclera inner");
+  console.log("P7: choroid/retina anterior retracted to ora serrata + attached (0.3/0.2mm)");
 
   // ---- P8: vitreous 前表面贴 lens 后表面(fossa patellaris) ----
   const vitreousMesh = meshes.find((m) => m.name === "VH_M_vitreous_humor_L");
