@@ -744,43 +744,95 @@ function thinSclera(scleraMesh, thicknessFn) {
 /** Phase 6: set a ring band's RADIAL thickness to a fixed value, keeping the
  *  outer edge fixed and moving the inner edge to `outer - targetBand`. Used to
  *  match the limbus (corneoscleral junction) shell thickness to the cornea and
- *  sclera (all 1.17 mm). */
+ *  sclera (all 1.17 mm).
+ *
+ *  Per-(angle x z) granularity: the limbus is a SLOPED transition band (its
+ *  radius changes along z as it tilts between cornea and sclera), so a
+ *  per-angle-only outer/inner sample mixes the z-slope into the band and
+ *  leaves some angles too thick (1.25-1.64 mm). We sample the outer surface
+ *  per (angle, z) bin and move each inner vertex to outerAt(a, z) - target. */
 function reprofileRingBand(mesh, targetBand) {
   if (!mesh) return;
   const AB = 64;
+  const ZB = 32;
   const pos = mesh.geometry.getAttribute("position");
-  const inner = new Array(AB).fill(1e9);
-  const outer = new Array(AB).fill(0);
+  let nor = mesh.geometry.getAttribute("normal");
+  if (!nor) { mesh.geometry.computeVertexNormals(); nor = mesh.geometry.getAttribute("normal"); }
+  let zmin = 1e9;
+  let zmax = -1e9;
+  for (let i = 0; i < pos.count; i += 1) {
+    const z = pos.getZ(i);
+    zmin = Math.min(zmin, z);
+    zmax = Math.max(zmax, z);
+  }
+  const angleBin = (a) => {
+    if (a < 0) a += Math.PI * 2;
+    return Math.min(AB - 1, Math.floor((a / (Math.PI * 2)) * AB));
+  };
+  const zBin = (z) => Math.min(ZB - 1, Math.max(0, Math.floor(((z - zmin) / (zmax - zmin + 1e-6)) * ZB)));
+  // sample the OUTER surface (radial normal points outward) per (a, z)
+  const outer = new Array(AB * ZB).fill(0);
   for (let i = 0; i < pos.count; i += 1) {
     const x = pos.getX(i);
     const y = pos.getY(i);
+    const z = pos.getZ(i);
     const r = Math.hypot(x, y);
     if (r < 0.3) continue;
-    let a = Math.atan2(y, x);
-    if (a < 0) a += Math.PI * 2;
-    const ab = Math.min(AB - 1, Math.floor((a / (Math.PI * 2)) * AB));
-    if (r < inner[ab]) inner[ab] = r;
-    if (r > outer[ab]) outer[ab] = r;
+    const dot = (nor.getX(i) * x + nor.getY(i) * y) / r;
+    if (dot < -0.05) continue; // inner surface only
+    const idx = zBin(z) * AB + angleBin(Math.atan2(y, x));
+    if (r > outer[idx]) outer[idx] = r;
   }
-  const edgeAt = (arr, a) => {
-    const f = (a / (Math.PI * 2)) * AB;
-    const i = Math.min(AB - 1, Math.max(0, Math.floor(f)));
-    const i2 = (i + 1) % AB;
-    const t = f - i;
-    return arr[i] * (1 - t) + arr[i2] * t;
+  // fill empty bins (nearest along angle, then along z)
+  for (let zb = 0; zb < ZB; zb += 1) {
+    for (let ab = 0; ab < AB; ab += 1) {
+      if (outer[zb * AB + ab] > 1e-4) continue;
+      let best = 0;
+      for (let d = 1; d < AB && best === 0; d += 1) {
+        const l = (ab - d + AB) % AB;
+        const rr = (ab + d) % AB;
+        if (outer[zb * AB + l] > 1e-4) best = outer[zb * AB + l];
+        else if (outer[zb * AB + rr] > 1e-4) best = outer[zb * AB + rr];
+      }
+      if (best === 0) {
+        for (let dz = 1; dz < ZB; dz += 1) {
+          if (zb - dz >= 0 && outer[(zb - dz) * AB + ab] > 1e-4) { best = outer[(zb - dz) * AB + ab]; break; }
+          if (zb + dz < ZB && outer[(zb + dz) * AB + ab] > 1e-4) { best = outer[(zb + dz) * AB + ab]; break; }
+        }
+      }
+      if (best > 0) outer[zb * AB + ab] = best;
+    }
+  }
+  const outerAt = (a, z) => {
+    const af = (a / (Math.PI * 2)) * AB;
+    const a0 = Math.floor(af) % AB;
+    const a1 = (a0 + 1) % AB;
+    const at = af - Math.floor(af);
+    const zf = ((z - zmin) / (zmax - zmin + 1e-6)) * ZB;
+    const z0 = Math.min(ZB - 1, Math.max(0, Math.floor(zf)));
+    const z1 = Math.min(ZB - 1, z0 + 1);
+    const zt = zf - Math.floor(zf);
+    const v00 = outer[z0 * AB + a0];
+    const v01 = outer[z0 * AB + a1];
+    const v10 = outer[z1 * AB + a0];
+    const v11 = outer[z1 * AB + a1];
+    const v0 = v00 * (1 - at) + v01 * at;
+    const v1 = v10 * (1 - at) + v11 * at;
+    return v0 * (1 - zt) + v1 * zt;
   };
   for (let i = 0; i < pos.count; i += 1) {
     const x = pos.getX(i);
     const y = pos.getY(i);
+    const z = pos.getZ(i);
     const r = Math.hypot(x, y);
     if (r < 0.3) continue;
+    const dot = (nor.getX(i) * x + nor.getY(i) * y) / r;
+    if (dot >= -0.05) continue; // outer surface stays fixed
     let a = Math.atan2(y, x);
     if (a < 0) a += Math.PI * 2;
-    const o = edgeAt(outer, a);
-    const inn = edgeAt(inner, a);
-    const band = o - inn;
-    const f = band > 1e-4 ? Math.min(1, Math.max(0, (o - r) / band)) : 0;
-    const rNew = o - f * targetBand;
+    const o = outerAt(a, z);
+    const rNew = o - targetBand;
+    if (rNew < 0.05) continue;
     const c = r > 1e-6 ? rNew / r : 0;
     pos.setX(i, x * c);
     pos.setY(i, y * c);
@@ -788,17 +840,87 @@ function reprofileRingBand(mesh, targetBand) {
   pos.needsUpdate = true;
 }
 
-/** Phase 7: shift an inner shell (choroid / retina) radially outward by a
- *  fixed amount so it re-attaches to the (thinned) sclera inner surface. */
-function shiftShellOutward(mesh, shift) {
-  if (!mesh) return;
+/** Phase 3b: scale the cornea's XY extent so its diameter matches the
+ *  anatomical value (~11.5 mm, down from the HRA 13.5 mm). Z is untouched.
+ *  Call BEFORE reprofileCornea so the posterior rebuild uses the new edge
+ *  radius. The aqueous humor (rmax 5.62 mm) stays fully covered by the
+ *  cornea's new edge (5.75 mm). */
+function scaleCorneaDiameter(corneaMesh, targetDiameterMm) {
+  if (!corneaMesh) return;
+  const MM_PER_UNIT = 1.17 / 0.176; // 6.6477
+  const pos = corneaMesh.geometry.getAttribute("position");
+  let rmax = 0;
+  for (let i = 0; i < pos.count; i += 1) {
+    const r = Math.hypot(pos.getX(i), pos.getY(i));
+    if (r > rmax) rmax = r;
+  }
+  const targetR = (targetDiameterMm / 2) / MM_PER_UNIT;
+  const scale = rmax > 1e-4 ? targetR / rmax : 1;
+  for (let i = 0; i < pos.count; i += 1) {
+    pos.setX(i, pos.getX(i) * scale);
+    pos.setY(i, pos.getY(i) * scale);
+  }
+  pos.needsUpdate = true;
+  console.log(`scaled cornea diameter ${(rmax * 2 * MM_PER_UNIT).toFixed(1)}mm -> ${targetDiameterMm}mm (scale ${scale.toFixed(3)})`);
+}
+
+/** Build a per-z profile of a shell's INNER surface (min r of inner-surface
+ *  vertices, identified by the radial normal pointing inward) over the FULL
+ *  z range. Unlike buildScleraInnerProfile (anterior zone only), this covers
+ *  the posterior pole, which choroid/retina need. */
+function buildFullInnerProfile(mesh, z0, z1, zbins) {
   const pos = mesh.geometry.getAttribute("position");
+  let nor = mesh.geometry.getAttribute("normal");
+  if (!nor) { mesh.geometry.computeVertexNormals(); nor = mesh.geometry.getAttribute("normal"); }
+  const inner = new Array(zbins).fill(1e9);
   for (let i = 0; i < pos.count; i += 1) {
     const x = pos.getX(i);
     const y = pos.getY(i);
+    const z = pos.getZ(i);
     const r = Math.hypot(x, y);
     if (r < 0.3) continue;
-    const c = (r + shift) / r;
+    const dot = (nor.getX(i) * x + nor.getY(i) * y) / r;
+    if (dot >= -0.05) continue; // outer surface only
+    const f = (z - z0) / (z1 - z0);
+    if (f < 0 || f >= 1) continue;
+    const b = Math.floor(f * zbins);
+    if (r < inner[b]) inner[b] = r;
+  }
+  for (let b = 0; b < zbins; b += 1) {
+    if (inner[b] !== 1e9) continue;
+    for (let j = 1; j < zbins; j += 1) {
+      if (b - j >= 0 && inner[b - j] !== 1e9) { inner[b] = inner[b - j]; break; }
+      if (b + j < zbins && inner[b + j] !== 1e9) { inner[b] = inner[b + j]; break; }
+    }
+  }
+  return (z) => {
+    const f = (z - z0) / (z1 - z0);
+    const fb = Math.min(zbins - 1, Math.max(0, f * zbins));
+    const i = Math.floor(fb);
+    const i2 = Math.min(zbins - 1, i + 1);
+    const t = fb - i;
+    return inner[i] * (1 - t) + inner[i2] * t;
+  };
+}
+
+/** Phase 7: attach a shell exactly to a reference inner surface — outer
+ *  surface vertices land on `outerFn(z)`, inner surface vertices land
+ *  `thickness` radially inside it. Replaces the old fixed shiftShellOutward,
+ *  which could not follow the sloped/posterior sclera profile. */
+function attachShellToInner(mesh, outerFn, thickness) {
+  if (!mesh) return;
+  const pos = mesh.geometry.getAttribute("position");
+  let nor = mesh.geometry.getAttribute("normal");
+  if (!nor) { mesh.geometry.computeVertexNormals(); nor = mesh.geometry.getAttribute("normal"); }
+  for (let i = 0; i < pos.count; i += 1) {
+    const x = pos.getX(i);
+    const y = pos.getY(i);
+    const z = pos.getZ(i);
+    const r = Math.hypot(x, y);
+    if (r < 0.3) continue;
+    const dot = (nor.getX(i) * x + nor.getY(i) * y) / r;
+    const target = outerFn(z) - (dot < -0.05 ? thickness : 0);
+    const c = r > 1e-6 ? target / r : 0;
     pos.setX(i, x * c);
     pos.setY(i, y * c);
   }
@@ -854,8 +976,10 @@ function shiftShellOutward(mesh, shift) {
   console.log("retracted ora serrata + choroid/retina anterior to z ~0.4");
 
   // Phase 3a/3b — uniform cornea thickness (~0.5 mm) + inner surface flush
-  // with the aqueous humor front (anterior chamber).
+  // with the aqueous humor front (anterior chamber). Diameter first: the HRA
+  // cornea is 13.5 mm, real is ~11.5 mm (Phase 3b, previously deferred).
   const corneaMesh = meshes.find((m) => m.name === "VH_M_cornea_L");
+  scaleCorneaDiameter(corneaMesh, 11.5);
   reprofileCornea(corneaMesh, 0.125, 0.175);
   console.log("re-profiled cornea thickness (0.83->1.17mm gradient, normal-based)");
 
@@ -892,10 +1016,15 @@ function shiftShellOutward(mesh, shift) {
   reprofileRingBand(limbusMesh, 0.176);
   console.log("set limbus radial thickness to 1.17mm");
 
-  // Phase 7 — re-attach choroid/retina to the thinned sclera inner surface.
-  shiftShellOutward(choroidMesh, 0.03);
-  shiftShellOutward(retinaMesh, 0.10);
-  console.log("shifted choroid/retina to re-attach to sclera");
+  // Phase 7 — re-attach choroid/retina to the thinned sclera inner surface and
+  // set real shell thicknesses: choroid ~0.3 mm, retina ~0.2 mm (the HRA
+  // shells were ~1.2 mm). The choroid's OUTER surface sits exactly on the
+  // sclera inner surface; the retina's outer surface sits on the choroid's
+  // inner surface. Full-z profile so the posterior pole is covered too.
+  const scleraInnerFull = buildFullInnerProfile(scleraMesh, -1.4, 1.6, 80);
+  attachShellToInner(choroidMesh, scleraInnerFull, 0.0451); // 0.3mm
+  attachShellToInner(retinaMesh, (z) => scleraInnerFull(z) - 0.0451, 0.0301); // 0.2mm, on choroid inner
+  console.log("re-attached choroid (0.3mm) / retina (0.2mm) to sclera inner surface");
 
   for (const mesh of meshes) {
     const id = PART_FROM_MESH[mesh.name] || null;
