@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { ArrowLeft, ArrowRight, Map, X } from "lucide-react";
 import type { Organ, TourStep } from "../lib/anatomy-data";
 import type { AnatomyViewer } from "../lib/three/viewer";
@@ -32,11 +32,6 @@ export function TourOverlay({ organ, viewerRef, onClose }: Props) {
   useEffect(() => {
     if (step) viewerRef.current?.tourStep(step.layerId);
   }, [index, step, viewerRef]);
-
-  // Expose the current index so a keyboard handler could read it without
-  // re-binding; harmless to keep even if unused for now.
-  const indexRef = useRef(index);
-  indexRef.current = index;
 
   if (!steps.length) return null;
 

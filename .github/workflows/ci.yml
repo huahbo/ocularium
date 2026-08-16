@@ -25,5 +25,8 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Lint
+        run: npm run lint
+
       - name: Test rendered HTML
-        run: npm test
+        run: node --test tests/rendered-html.test.mjs

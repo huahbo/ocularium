@@ -559,7 +559,7 @@ function drawTrabecular(ctx: CanvasRenderingContext2D, base: string) {
 }
 
 /** Concentric lens fibre rings. */
-function drawLens(ctx: CanvasRenderingContext2D, base: string) {
+function drawLens(ctx: CanvasRenderingContext2D) {
   const cx = TEX_SIZE / 2;
   const cy = TEX_SIZE / 2;
   const grad = ctx.createRadialGradient(cx, cy, TEX_SIZE * 0.05, cx, cy, TEX_SIZE * 0.5);
@@ -655,7 +655,7 @@ export function partTexture(id: AnatomyPartId): THREE.CanvasTexture {
         ctx.fillRect(0, 0, TEX_SIZE, TEX_SIZE);
         break;
       case "lens":
-        drawLens(ctx, "");
+        drawLens(ctx);
         break;
       case "zonules":
         drawStriations(ctx, "rgba(240,244,240,0.85)", "rgba(200,205,190,0.7)", Math.PI / 4, 5);
@@ -808,7 +808,6 @@ export function generatePartUVs(
       v = (z / size.z) + 0.5;
     } else {
       // cylinder around Y
-      const r = Math.max(Math.hypot(x, z), 1e-5);
       u = (Math.atan2(z, x) / (Math.PI * 2)) + 0.5;
       v = (y / size.y) + 0.5;
     }

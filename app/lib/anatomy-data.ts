@@ -122,7 +122,10 @@ export const organs: Organ[] = [
     name: "Eye",
     scientificName: "Oculus",
     system: "Sensory System",
-    model: "/models/eyeball.glb",
+    // Unused for the eye (layers mode renders anatomyModel; the procedural
+    // fallback ignores the URL) — kept on an existing asset so the path can
+    // never 404 if a future code path loads it.
+    model: "/models/eye-anatomy.glb",
     procedural: "eye",
     anatomyModel: "/models/eye-anatomy.glb",
     anteriorSegment: true,

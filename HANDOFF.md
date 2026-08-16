@@ -1,23 +1,23 @@
 # Anatomy Atelier — 开发进度交接文档（HANDOFF）
 
 > 用途：上下文清理后，由新会话读取此文档 + 恢复提示词，无缝继续开发。
-> 最后更新：2026-08-05
+> 最后更新：2026-08-16（健康基线见 `REPORT.md`：next 16.3.1 / lint 0 errors / audit 0 高危）
 
 ---
 
 ## 1. 项目概况
 
-- **位置**：`E:\anatomy-main`（GitHub fork: `huahbo/anatomy`，但本地**无 .git**）
-- **技术栈**：Next.js 16 + React 19 + Three.js 0.185 + GSAP + Tailwind 4 + vinext (Cloudflare)
+- **位置**：`E:\anatomy-main`（git 仓库，remote: `ocularium` → github.com/huahbo/ocularium，58+ commits）
+- **技术栈**：Next.js 16.3.1 + React 19 + Three.js 0.185 + GSAP + Tailwind 4 + vinext (Cloudflare)
 - **本质**：单眼球深度解剖教学应用（已删光其它 8 个器官）
 - **启动**：`npm run dev`（Windows 已用 cross-env 修复，PS7 直接可跑）
-- **构建**：`npm run build` ✅（当前全绿）
+- **构建**：`npm run build` ✅；**lint**：`npm run lint` ✅（0 errors，public/ 与 scripts/ 已加入 ignore）；**audit**：0 高危
 
 ## 2. 当前架构（已完成）
 
 ```
 三栏布局：
-├─ 左栏：23 层结构树（前节15/中节2/后节6 分组）
+├─ 左栏：24 层结构树（前节16/中节2/后节6 分组，含 collector channels）
 │       点击=高亮 眼睛图标=隐藏 ◐=透明层 点击展开=透明度滑杆
 ├─ 中栏：OrganViewer（3D）
 │       三模式：Layered / Anatomy / Outflow
@@ -151,7 +151,7 @@
 
 HRA 眼模型（`source/eye-anatomy.glb`，26MB 原始，来自美国 Human Reference Atlas / Visible Human）的原始数据本身有多处问题，**所有显示逻辑必须使用修正后的数据，不能直接使用原始坐标**：
 
-1. **SC/TM 位置错误（最麻烦，已修）**：原始数据 TM 半径 0.885、SC 半径 0.864，掉在**睫状体环的内孔**里（睫状体环：内缘 ~1.03、外缘 1.18）。解剖正确位置在**睫状体外缘带**：TM → 1.08、SC → 1.14（紧贴睫状体外缘内侧）。`bake-eye.cjs` 的 `relocateRing` 修正（TM ×1.22、SC ×1.32，z+0.03）。**重新烘焙后必须验证实际 bbox**。
+1. **SC/TM 位置错误（最麻烦，已修）**：原始数据 TM 半径 0.885、SC 半径 0.864，掉在**睫状体环的内孔**里。最终方案（2026-08-15 plan-A 起）：**逐角度 remap**——SC 每方向外缘 = 睫状体外缘 − 0.10（`remapRingToReference`），TM 每方向外缘 = SC 内缘 − 0.005（`remapRingInnerToReference`），z 对齐睫状体后缘平面。历史 `relocateRing`（均匀缩放）等 10 个旧函数已成死代码。**重新烘焙后必须验证实际 bbox**（12 扇区对比）。
 2. **嵌套 mesh 连带隐藏（已修）**：fovea / macula lutea / optic disc 是 **retina 的子节点**；ciliary muscle 是 **ciliary body 的子节点**——父级从 rail 隐藏时子级连带隐藏（Three.js 规则）。`viewer.ts` 的 `flattenNestedMeshes` 在加载后把它们解绑到 model 根（保持局部变换，位置不变）。
 3. **原始 GLB 无 UV**：所有 mesh 没有 TEXCOORD——运行时 `generatePartUVs` 按几何类型投影（sphere/plane/cylinder/radial），烘焙版已生成 UV（`userData.baked` 跳过）。
 4. **mesh 名称在 draco 压缩后丢失**：`eye-anatomy.glb`（压缩版）的 mesh.name 为空——但 **node 名保留**（`VH_M_*_L`），three GLTFLoader 用 node 名填充 mesh.name——运行时按 mesh.name 匹配 layer id（`partIdForMesh`）。**不要用 gltf-transform 删除/重命名 node**。

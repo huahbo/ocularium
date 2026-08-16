@@ -12,6 +12,10 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Vendored third-party JS shipped as static assets (basis/draco decoders).
+    "public/**",
+    // Plain-CJS build-time pipeline script (require() is intentional there).
+    "scripts/**",
   ]),
 ]);
 

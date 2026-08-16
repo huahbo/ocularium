@@ -4,10 +4,11 @@ import type { LoadedOrgan } from "./loaders";
 /**
  * Procedural layered eyeball.
  *
- * The shipped `eyeball.glb` is a single merged mesh (Tripo export), so its
- * internal anatomy cannot be peeled apart. This module rebuilds the eye from
- * concentric shells instead — every layer is its own mesh tagged with
- * `userData.layer`, which the viewer uses to show/hide layers one at a time.
+ * The old `eyeball.glb` (a single merged Tripo export that could not be
+ * peeled) was removed as dead weight — the eye always renders the HRA model.
+ * This module remains as a code-only fallback: it rebuilds the eye from
+ * concentric shells, every layer its own mesh tagged with `userData.layer`,
+ * which the viewer uses to show/hide layers one at a time.
  *
  * Geometry is authored at final size: the eye sits at the origin with radius
  * 1.9 (half of FIT_SIZE), the visual axis along +Z (cornea at the front), and

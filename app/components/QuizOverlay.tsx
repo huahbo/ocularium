@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { ArrowRight, Check, CircleHelp, RotateCcw, X } from "lucide-react";
 import type { Organ, QuizQuestion } from "../lib/anatomy-data";
 import { layerLabel } from "../lib/anatomy-data";
@@ -27,7 +27,7 @@ export function QuizOverlay({ organ, viewerRef, onClose }: Props) {
 
   const question: QuizQuestion | undefined = questions[index];
   /** Id of the last wrongly clicked structure, for the retry hint. */
-  const lastWrongRef = useRef<string | null>(null);
+  const [lastWrong, setLastWrong] = useState<string | null>(null);
 
   /** Applies a question's 3D state: highlight for identify, neutral for find,
    *  camera framed on the answer structure. */
@@ -52,19 +52,14 @@ export function QuizOverlay({ organ, viewerRef, onClose }: Props) {
     };
   }, [viewerRef]);
 
-  // Keeps the pick handler in sync with the latest state, so a canvas click
-  // never reads stale phase/score values.
-  const phaseRef = useRef(phase);
-  const attemptsRef = useRef(attempts);
-  phaseRef.current = phase;
-  attemptsRef.current = attempts;
-
-  const handlePick = useCallback(
-    (layerId: string | null) => {
-      const current = questions[indexRef.current];
+  // The pick handler is re-created every render (and re-assigned to the
+  // viewer by the effect below), so it always closes over the latest
+  // phase/attempts/index — no refs needed, and React 19 lint stays happy.
+  const handlePick = (layerId: string | null) => {
+      const current = questions[index];
       const viewerInstance = viewerRef.current;
       if (!current || !viewerInstance) return;
-      if (phaseRef.current !== "answering") return;
+      if (phase !== "answering") return;
 
       if (layerId === current.answerLayerId) {
         viewerInstance.quizFlashLayer(current.answerLayerId, "correct");
@@ -73,11 +68,12 @@ export function QuizOverlay({ organ, viewerRef, onClose }: Props) {
         return;
       }
 
-      const nextAttempts = attemptsRef.current + 1;
-      if (layerId) {
-        viewerInstance.quizFlashLayer(layerId, "wrong");
-        lastWrongRef.current = layerId;
-      }
+      // Clicked empty space (raycast hit nothing) — not a wrong attempt.
+      if (!layerId) return;
+
+      const nextAttempts = attempts + 1;
+      viewerInstance.quizFlashLayer(layerId, "wrong");
+      setLastWrong(layerId);
       if (nextAttempts >= MAX_ATTEMPTS) {
         // Reveal: flash the answer structure and explain.
         viewerInstance.quizFlashLayer(current.answerLayerId, "correct");
@@ -86,14 +82,7 @@ export function QuizOverlay({ organ, viewerRef, onClose }: Props) {
         return;
       }
       setAttempts(nextAttempts);
-    },
-    [questions, viewerRef],
-  );
-
-  // indexRef so handlePick can read the question without re-binding.
-  const indexRef = useRef(index);
-  indexRef.current = index;
-
+  };
   useEffect(() => {
     const viewerInstance = viewerRef.current;
     if (viewerInstance) viewerInstance.onQuizPick = handlePick;
@@ -113,7 +102,6 @@ export function QuizOverlay({ organ, viewerRef, onClose }: Props) {
   if (!questions.length) return null;
 
   const total = questions.length;
-  const answered = phase === "correct" || phase === "revealed";
 
   return (
     <div className="quiz-overlay" aria-label="Interactive 3D quiz">
@@ -173,7 +161,7 @@ export function QuizOverlay({ organ, viewerRef, onClose }: Props) {
                 <span className="quiz-hint">Click the structure in the 3D model to answer.</span>
               )}
               {phase === "answering" && attempts > 0 && (
-                <span className="quiz-hint retry">Not quite — that was {layerLabel(organ, lastWrongRef.current ?? "")}. Try again!</span>
+                <span className="quiz-hint retry">Not quite — that was {layerLabel(organ, lastWrong ?? "")}. Try again!</span>
               )}
               {phase === "correct" && (
                 <>

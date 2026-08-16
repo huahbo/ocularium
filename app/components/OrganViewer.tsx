@@ -26,8 +26,6 @@ type Props = {
   activeLayerId?: string | null;
   /** Layer ids currently hidden by the structure rail's eye toggles. */
   hiddenLayerIds?: ReadonlySet<string>;
-  /** Called when the structure rail toggles a layer's visibility. */
-  onToggleLayer?: (id: string) => void;
   /** Per-layer opacity overrides (0–1), keyed by layer id. Drives the opacity
    *  slider in the structure rail. */
   layerOpacities?: Readonly<Record<string, number>>;
@@ -50,7 +48,6 @@ export function OrganViewer({
   onCompare,
   activeLayerId,
   hiddenLayerIds,
-  onToggleLayer,
   layerOpacities,
   viewerRef,
   quizMode = false,
@@ -174,7 +171,7 @@ export function OrganViewer({
     // Restore the mode the user preferred for this organ family, or default.
     const nextMode: "layers" | "anatomy" | "anterior" =
       organ.procedural === "eye" && preferredModeRef.current ? preferredModeRef.current : organ.procedural ? "layers" : "anatomy";
-    void import("../lib/three/viewer").then(async ({ AnatomyViewer: Viewer }) => {
+    void import("../lib/three/viewer").then(async () => {
       if (cancelled || !viewerInstanceRef.current) return;
       setMode(nextMode);
       await loadOrgan(organ, nextMode);
