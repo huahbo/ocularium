@@ -56,3 +56,4 @@ public/models/eye-anatomy-baked.glb
 
 # local reference literature (downloaded, not project code)
 references/
+`n# e2e regression artifacts`ntests/artifacts/
