@@ -17,8 +17,11 @@ type Phase = "answering" | "correct" | "revealed" | "finished";
 /** Number of wrong attempts before the answer is revealed. */
 const MAX_ATTEMPTS = 2;
 
+/** Stable empty fallback so `questions` keeps its identity across renders. */
+const NO_QUESTIONS: QuizQuestion[] = [];
+
 export function QuizOverlay({ organ, viewerRef, onClose }: Props) {
-  const questions = organ.quiz ?? [];
+  const questions = organ.quiz ?? NO_QUESTIONS;
   const [index, setIndex] = useState(0);
   const [phase, setPhase] = useState<Phase>("answering");
   const [score, setScore] = useState(0);

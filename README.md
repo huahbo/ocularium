@@ -1,8 +1,8 @@
 # Ocularium — Anatomy of vision, in 3D
 
 An interactive 3D anatomy lab for the human eye: peel through 23 layered
-structures, take guided tours and quizzes, compare clinical conditions, and
-watch the aqueous humour flow — all in the browser.
+structures, take guided tours and quizzes, and watch the aqueous humour flow —
+all in the browser.
 
 > **Acknowledgement** — Ocularium grew out of the
 > [thebuggeddev/anatomy](https://github.com/thebuggeddev/anatomy) 3D anatomy
@@ -18,9 +18,6 @@ watch the aqueous humour flow — all in the browser.
 - **Interactive 3D quiz** — 10 Identify/Find questions answered by clicking the
   model.
 - **Guided anatomy tour** — a 10-stop light-path journey with narration.
-- **Clinical conditions** — material + geometry simulations of cataract,
-  glaucoma, macular degeneration, and retinal detachment, with a one-tap
-  normal/condition A/B compare.
 - **Aqueous flow animation** — the ciliary body → pupil → trabecular meshwork →
   Schlemm's canal path rendered as moving particles.
 - **Viewer tools** — rotate, zoom, isolate, cross-section (draggable cut +

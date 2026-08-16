@@ -9,7 +9,6 @@ import {
   CircleHelp,
   Eye,
   EyeOff,
-  FileText,
   Heart,
   Layers3,
   Map,
@@ -62,11 +61,6 @@ export function AnatomyApp() {
   const [activeLayer, setActiveLayer] = useState<string | null>(null);
   /** Structure-rail search: filters the layer list by label or layer id. */
   const [searchQuery, setSearchQuery] = useState("");
-  /** Clinical condition currently simulated in the 3D viewer (if any). */
-  const [activeCondition, setActiveCondition] = useState<string | null>(null);
-  /** When true the condition panel is previewing the normal state (A/B
-   *  compare): the viewer is temporarily cleared but the mode stays on. */
-  const [conditionPreview, setConditionPreview] = useState(false);
   /** Aqueous-humour flow animation running in the viewer (if any). */
   const [flowActive, setFlowActive] = useState(false);
   /** English ↔ 中文 glossary modal. */
@@ -107,38 +101,6 @@ export function AnatomyApp() {
     }
   };
 
-  /** Toggles a 3D-simulatable condition on the viewer. */
-  const toggleCondition = (conditionId: string) => {
-    if (activeCondition === conditionId) {
-      viewerApiRef.current?.clearCondition();
-      setActiveCondition(null);
-      setConditionPreview(false);
-    } else {
-      viewerApiRef.current?.applyCondition(conditionId);
-      setActiveCondition(conditionId);
-      setConditionPreview(false);
-      // Fly the camera to the affected structure so the change is visible —
-      // the retina/optic disc sit inside the eye and read as "nothing
-      // happened" from the default front view.
-      const focus = CONDITION_FOCUS[conditionId];
-      if (focus && !quizOpen && !tourOpen) viewerApiRef.current?.focusLayer(focus);
-    }
-    scrollToViewer();
-  };
-
-  /** A/B compare: temporarily show the normal state without leaving condition
-   *  mode, then apply the condition again. */
-  const previewCondition = () => {
-    if (!activeCondition) return;
-    if (conditionPreview) {
-      viewerApiRef.current?.applyCondition(activeCondition);
-      setConditionPreview(false);
-    } else {
-      viewerApiRef.current?.clearCondition();
-      setConditionPreview(true);
-    }
-  };
-
   useEffect(() => {
     if (!contentRef.current) return;
     gsap.fromTo(contentRef.current.querySelectorAll("[data-reveal]"),
@@ -147,13 +109,13 @@ export function AnatomyApp() {
     );
   }, [organ.id]);
 
-  const layerGroups: OrganLayerGroup[] = organ.layerGroups ?? [
-    { group: "Structures", layers: organ.layers ?? [] },
-  ];
   const totalLayers = (organ.layers ?? []).length;
 
   /** Layers filtered by the search box (label or id, case-insensitive). */
   const filteredGroups = useMemo(() => {
+    const layerGroups: OrganLayerGroup[] = organ.layerGroups ?? [
+      { group: "Structures", layers: organ.layers ?? [] },
+    ];
     const query = searchQuery.trim().toLowerCase();
     if (!query) return layerGroups;
     return layerGroups
@@ -166,7 +128,7 @@ export function AnatomyApp() {
         ),
       }))
       .filter((group) => group.layers.length > 0);
-  }, [layerGroups, searchQuery]);
+  }, [organ, searchQuery]);
 
   /** Selects a structure from the rail and flies the camera to it. */
   const selectStructure = (layer: { id: string }, selected: boolean) => {
@@ -309,15 +271,6 @@ export function AnatomyApp() {
           {tourOpen && (
             <TourOverlay organ={organ} viewerRef={viewerApiRef} onClose={() => setTourOpen(false)} />
           )}
-          {activeCondition && (
-            <div className="condition-chip" role="status" aria-live="polite">
-              <span>⚠</span> {CONDITION_LABEL[activeCondition]}
-              {conditionPreview && <em>· previewing normal</em>}
-              <button type="button" className="condition-chip-toggle" onClick={previewCondition}>
-                {conditionPreview ? "Show condition" : "Show normal"}
-              </button>
-            </div>
-          )}
         </div>
 
         <aside className="info-panel" ref={contentRef}>
@@ -392,46 +345,6 @@ export function AnatomyApp() {
           </button>
           <button onClick={() => setModal("animation")}>Play animation <ArrowRight size={14} /></button>
         </article>
-        <article>
-          <header><div><em>Clinical notes</em><h3>Common conditions</h3></div><FileText size={17} /></header>
-          <ul className="condition-list">
-            {organ.conditions.map((condition) => {
-              const conditionId = CONDITION_3D[condition];
-              const active = activeCondition === conditionId;
-              return (
-                <li key={condition}>
-                  {conditionId ? (
-                    <>
-                      <button
-                        type="button"
-                        className={active ? "active" : ""}
-                        onClick={() => toggleCondition(conditionId)}
-                        aria-pressed={active}
-                      >
-                        {condition}
-                        {active && <em>Viewing in 3D</em>}
-                      </button>
-                      {active && (
-                        <button
-                          type="button"
-                          className="condition-compare"
-                          onClick={previewCondition}
-                          aria-pressed={conditionPreview}
-                        >
-                          {conditionPreview ? <Eye size={12} /> : <EyeOff size={12} />}
-                          {conditionPreview ? "Show condition" : "Show normal"}
-                        </button>
-                      )}
-                    </>
-                  ) : (
-                    condition
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-          <button onClick={() => setModal("lesson")}>See all <ArrowRight size={14} /></button>
-        </article>
         <article className="system-card">
           <header><div><em>Where it works</em><h3>{organ.system}</h3></div><BrainCircuit size={17} /></header>
           <button
@@ -456,30 +369,6 @@ const MODAL_ICON: Record<Exclude<Modal, null>, string> = {
   animation: "▶",
   system: "⌖",
   lesson: "✦",
-};
-
-/** Conditions with a 3D material simulation (viewer.applyCondition). */
-const CONDITION_3D: Record<string, string> = {
-  Cataract: "cataract",
-  Glaucoma: "glaucoma",
-  "Macular degeneration": "amd",
-  "Retinal detachment": "detachment",
-};
-
-/** Structure each condition's camera flies to when applied. */
-const CONDITION_FOCUS: Record<string, string> = {
-  cataract: "VH_M_lens_L",
-  glaucoma: "VH_M_optic_disc_L",
-  amd: "VH_M_macula_lutea_L",
-  detachment: "VH_M_retina_L",
-};
-
-/** Condition id → display name for the on-screen status chip. */
-const CONDITION_LABEL: Record<string, string> = {
-  cataract: "Cataract",
-  glaucoma: "Glaucoma",
-  amd: "Macular Degeneration",
-  detachment: "Retinal Detachment",
 };
 
 function LearningModal({ type, organ, onClose }: { type: Exclude<Modal, null>; organ: Organ; onClose: () => void }) {

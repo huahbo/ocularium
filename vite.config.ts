@@ -43,6 +43,19 @@ export default defineConfig(async () => {
   const { cloudflare } = await import("@cloudflare/vite-plugin");
 
   return {
+    build: {
+      // Rolldown splits three.js into its own cacheable chunk automatically
+      // (three.module ~570 kB); keep the group name stable and raise the
+      // warning threshold so the independent 3D runtime doesn't alarm.
+      rolldownOptions: {
+        output: {
+          manualChunks(id: string) {
+            if (id.includes("node_modules/three")) return "three";
+          },
+        },
+      },
+      chunkSizeWarningLimit: 750,
+    },
     server: {
       // Cloudflare quick tunnels hit the server with a random
       // *.trycloudflare.com Host header — allow it (and workers.dev) so

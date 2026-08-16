@@ -109,10 +109,8 @@
 - Cross-section 激活后显示深度滑块（`.section-control`）：`viewer.setCrossSectionDepth(±2.4)` 实时移动 clipPlane.constant
 - 验证：滑块拖动剖面深度变化（diff 11-18）
 
-### C1: 病症模式 ✅ (2026-08-06)
-- `viewer.applyCondition/clearCondition` + `CONDITION_EFFECTS`：材质级模拟 4 种病症（白内障=晶状体浑浊、青光眼=视盘加深、黄斑变性=黄斑/fovea 暗沉、视网膜脱离=视网膜半透明苍白）
-- UI：底部 "Common conditions" 列表可模拟项变按钮（`CONDITION_3D` 映射），点击应用/切换/恢复，"Viewing in 3D" 标签
-- 验证：应用/切换/清除/不可模拟保持纯文本
+### C1: 病症模式 ❌ 已删除 (2026-08-16)
+- 用户决定移除临床病症模拟功能：`viewer.applyCondition/clearCondition`、`CONDITION_EFFECTS/CONDITION_GEOMETRY`、deform 几何函数、condition-chip/A-B 对比 UI、"Common conditions" 卡片、`organ.conditions` 数据、相关 CSS 与 meta 文案已全部删除（app refs 0 残留）
 
 ### C2: 点击标签放大结构 ✅ (2026-08-06)
 - 热点 callout 加 "Focus in 3D" 按钮：hotspot label → 层 id 匹配 → `focusLayer`（相机飞入）+ `highlightLayer`（高亮）
@@ -173,6 +171,14 @@ HRA 眼模型（`source/eye-anatomy.glb`，26MB 原始，来自美国 Human Refe
   ```
   ⚠️ 该 API 频繁超时（限流），超时则用本地像素分析（PIL）兜底
 - **Blender MCP（2026-08-16 重装为官方版）**：Blender Lab 官方扩展 v1.0.0（blender.org/lab/mcp-server）装于 extensions\user_default\mcp，Blender 内 socket bridge 监听 9876（Auto Start，需系统偏好 Online Access=use_online_access 开启）；外部 server 为官方 blmcp 包（venv: C:\blender-mcp-server\venv，python -m blmcp，默认 stdio，可 --transport http）。DSH 已通过 dsh-mcp-client stdio 接入（工具名 mcp__blender__*）。旧版 ahujasid addon 已删除。⚠️ 官方依赖 mcp>=1.2,<2（2.x 移除了 mcp.server.fastmcp）；mcpb 包是 server 端，扩展本体是 release 里的 zip
+
+## 4.5 已知坑：vinext start 静态资源 404（Windows）
+
+- **症状**：`npm run start` 后页面 HTML 正常（SSR），但 `/assets/*.js`、`/models/*` 全部 404；根文件（favicon 等）正常
+- **根因**：vinext 0.0.50（及 1.0.0-beta.x）`StaticFileCache` 缓存键用 `path.relative` 的**反斜杠**（`/assets\\index.js`），而请求 pathname 是正斜杠 → Map 永远 miss（根文件无分隔符不受影响）
+- **修复**：`scripts/patch-vinext-static-cache.cjs`（幂等，postinstall 自动应用）：缓存键 `replaceAll(path.sep, "/")`
+- **回归脚本**：`npm run e2e`（scripts/e2e-regression.mjs）——12 项断言：24 层/剥离/quiz（含空点击不记错）/tour；需要 `npm run start` + chromium 1234（`npx playwright-core@1.62.1 install chromium`）
+- **Playwright 注意**：headless 下 WebGL readPixels 极慢（每截图 ~12s），timeout 要给足；locator.click 对 gsap data-reveal 元素误判不可见 → 脚本用物理坐标点击
 
 ## 5. 环境备注
 

@@ -36,9 +36,9 @@ export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   title: "Ocularium — Anatomy of vision, in 3D",
   description:
-    "Explore the human eye in precision 3D: 23 layered structures, clinical conditions, and the physiology of vision — an elegant, interactive anatomy lab.",
+    "Explore the human eye in precision 3D: 23 layered structures, guided tours and quizzes, and the physiology of vision — an elegant, interactive anatomy lab.",
   applicationName: "Ocularium",
-  keywords: ["eye anatomy", "3D anatomy", "human eye", "ophthalmology", "medical education", "interactive learning", "eye conditions"],
+  keywords: ["eye anatomy", "3D anatomy", "human eye", "ophthalmology", "medical education", "interactive learning"],
   icons: {
     icon: [
       { url: "/favicon.svg", type: "image/svg+xml" },
@@ -52,13 +52,13 @@ export const metadata: Metadata = {
     type: "website",
     siteName: "Ocularium",
     title: "Ocularium — Anatomy of vision, in 3D",
-    description: "Explore the human eye in precision 3D: 23 layered structures, clinical conditions, and the physiology of vision.",
+    description: "Explore the human eye in precision 3D: 23 layered structures, guided tours and quizzes, and the physiology of vision.",
     images: [OG_IMAGE],
   },
   twitter: {
     card: "summary_large_image",
     title: "Ocularium — Anatomy of vision, in 3D",
-    description: "Explore the human eye in precision 3D: 23 layered structures, clinical conditions, and the physiology of vision.",
+    description: "Explore the human eye in precision 3D: 23 layered structures, guided tours and quizzes, and the physiology of vision.",
     images: [OG_IMAGE],
   },
 };

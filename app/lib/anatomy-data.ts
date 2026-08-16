@@ -109,7 +109,6 @@ export type Organ = {
   funFact: string;
   tissue: string;
   comparison: string;
-  conditions: string[];
   hotspots: Hotspot[];
   /** Whether `/anatomy/<id>/*.webp` illustrations exist. Organs without them
    *  fall back to the accent glyph rather than a broken image. */
@@ -197,7 +196,6 @@ export const organs: Organ[] = [
     funFact: "The cornea carries no blood vessels at all; it takes oxygen directly from the air.",
     tissue: "Retinal layers",
     comparison: "Eye vs. brain",
-    conditions: ["Myopia", "Cataract", "Glaucoma", "Macular degeneration", "Retinal detachment", "Dry eye disease", "Astigmatism", "Conjunctivitis"],
     illustrated: true,
     hotspots: [
       { id: "cornea", label: "Cornea", detail: "Clear focusing surface", position: [0, 0, 1.9], color: "#6393d8" },
