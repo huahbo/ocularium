@@ -116,20 +116,9 @@ export type Organ = {
   illustrated: boolean;
 };
 
-export const organs: Organ[] = [
-  {
-    id: "eyeball",
-    name: "Eye",
-    scientificName: "Oculus",
-    system: "Sensory System",
-    // Unused for the eye (layers mode renders anatomyModel; the procedural
-    // fallback ignores the URL) — kept on an existing asset so the path can
-    // never 404 if a future code path loads it.
-    model: "/models/eye-anatomy.glb",
-    procedural: "eye",
-    anatomyModel: "/models/eye-anatomy.glb",
-    anteriorSegment: true,
-    layers: [
+
+/** Single source of truth for the eye's peelable layers (order = rail order). */
+const EYE_LAYERS: OrganLayer[] = [
       { id: "VH_M_cornea_L", label: "Cornea", color: "#d8ecf2", transparent: true, defaultOpacity: 0.55 },
       { id: "VH_M_corneo_scleral_junction_L", label: "Corneoscleral Junction", color: "#b9c8cc" },
       { id: "VH_M_iris_L", label: "Iris", color: "#a57a3c" },
@@ -154,47 +143,45 @@ export const organs: Organ[] = [
       { id: "VH_M_ora_serrata_of_retina_L", label: "Ora Serrata", color: "#8c666b" },
       { id: "VH_M_vitreous_humor_L", label: "Vitreous Humor", color: "#99b3cc", transparent: true, defaultOpacity: 0.5 },
       { id: "VH_M_collector_channel_L", label: "Collector Channels", color: "#d9c27a", transparent: true, defaultOpacity: 0.85 },
-    ],
+];
+
+/** Maps a group spec (ordered layer ids) to layer objects from EYE_LAYERS. */
+function layerGroupByIds(layers: OrganLayer[], ids: string[]): OrganLayer[] {
+  const byId = new Map(layers.map((layer) => [layer.id, layer]));
+  return ids.map((id) => byId.get(id)).filter((layer): layer is OrganLayer => Boolean(layer));
+}
+
+export const organs: Organ[] = [
+  {
+    id: "eyeball",
+    name: "Eye",
+    scientificName: "Oculus",
+    system: "Sensory System",
+    // Unused for the eye (layers mode renders anatomyModel; the procedural
+    // fallback ignores the URL) — kept on an existing asset so the path can
+    // never 404 if a future code path loads it.
+    model: "/models/eye-anatomy.glb",
+    procedural: "eye",
+    anatomyModel: "/models/eye-anatomy.glb",
+    anteriorSegment: true,
+    layers: EYE_LAYERS,
+    // Derived from EYE_LAYERS (single source of truth) — group membership only.
     layerGroups: [
-      {
-        group: "Anterior segment",
-        layers: [
-          { id: "VH_M_cornea_L", label: "Cornea", color: "#d8ecf2", transparent: true, defaultOpacity: 0.55 },
-          { id: "VH_M_corneo_scleral_junction_L", label: "Corneoscleral Junction", color: "#b9c8cc" },
-          { id: "VH_M_iris_L", label: "Iris", color: "#a57a3c" },
-          { id: "VH_M_pupil_L", label: "Pupil", color: "#101418" },
-          { id: "VH_M_lens_L", label: "Lens", color: "#dbe9ee", transparent: true, defaultOpacity: 0.5 },
-          { id: "VH_M_suspensory_ligament_of_lens_L", label: "Zonular Fibres", color: "#c4d2d6", transparent: true, defaultOpacity: 0.85 },
-          { id: "VH_M_aqueous_humor_L", label: "Aqueous Humor", color: "#b3d4e6", transparent: true, defaultOpacity: 0.5 },
-          { id: "VH_M_ciliary_body_L", label: "Ciliary Body", color: "#8c5940" },
-          { id: "VH_M_ciliary_muscle_L", label: "Ciliary Muscle", color: "#99664a" },
-          { id: "VH_M_ciliary_processes_L", label: "Ciliary Processes", color: "#854d38" },
-          { id: "VH_M_trabecular_meshwork_L", label: "Trabecular Meshwork", color: "#c7a059" },
-      { id: "VH_M_schlemms_canal_L", label: "Schlemm's Canal", color: "#669980" },
-      { id: "VH_M_collector_channel_L", label: "Collector Channels", color: "#d9c27a", transparent: true, defaultOpacity: 0.85 },
-      { id: "VH_M_palpebral_conjunctiva_of_upper_eyelid_L", label: "Palpebral Conj. (Upper)", color: "#e08072" },
-          { id: "VH_M_palpebral_conjunctiva_of_lower_eyelid_L", label: "Palpebral Conj. (Lower)", color: "#e08072" },
-          { id: "VH_M_bulbar_conjunctiva_L", label: "Bulbar Conjunctiva", color: "#ccb2a6" },
-        ],
-      },
-      {
-        group: "Middle / vascular",
-        layers: [
-          { id: "VH_M_sclera_L", label: "Sclera", color: "#f2eee3" },
-          { id: "VH_M_optic_choroid_L", label: "Choroid", color: "#732633" },
-        ],
-      },
-      {
-        group: "Posterior segment",
-        layers: [
-          { id: "VH_M_retina_L", label: "Retina", color: "#995a61" },
-          { id: "VH_M_fovea_L", label: "Fovea", color: "#d9994d" },
-          { id: "VH_M_macula_lutea_L", label: "Macula Lutea", color: "#cca640" },
-          { id: "VH_M_optic_disc_L", label: "Optic Disc", color: "#8c8073" },
-          { id: "VH_M_ora_serrata_of_retina_L", label: "Ora Serrata", color: "#8c666b" },
-          { id: "VH_M_vitreous_humor_L", label: "Vitreous Humor", color: "#99b3cc", transparent: true, defaultOpacity: 0.5 },
-        ],
-      },
+      { group: "Anterior segment", layers: layerGroupByIds(EYE_LAYERS, [
+        "VH_M_cornea_L", "VH_M_corneo_scleral_junction_L", "VH_M_iris_L", "VH_M_pupil_L",
+        "VH_M_lens_L", "VH_M_suspensory_ligament_of_lens_L", "VH_M_aqueous_humor_L",
+        "VH_M_ciliary_body_L", "VH_M_ciliary_muscle_L", "VH_M_ciliary_processes_L",
+        "VH_M_trabecular_meshwork_L", "VH_M_schlemms_canal_L", "VH_M_collector_channel_L",
+        "VH_M_palpebral_conjunctiva_of_upper_eyelid_L", "VH_M_palpebral_conjunctiva_of_lower_eyelid_L",
+        "VH_M_bulbar_conjunctiva_L",
+      ]) },
+      { group: "Middle / vascular", layers: layerGroupByIds(EYE_LAYERS, [
+        "VH_M_sclera_L", "VH_M_optic_choroid_L",
+      ]) },
+      { group: "Posterior segment", layers: layerGroupByIds(EYE_LAYERS, [
+        "VH_M_retina_L", "VH_M_fovea_L", "VH_M_macula_lutea_L", "VH_M_optic_disc_L",
+        "VH_M_ora_serrata_of_retina_L", "VH_M_vitreous_humor_L",
+      ]) },
     ],
     icon: "⊙",
     accent: "#7294b9",

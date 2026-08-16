@@ -172,7 +172,7 @@ HRA 眼模型（`source/eye-anatomy.glb`，26MB 原始，来自美国 Human Refe
   # POST https://integrate.api.nvidia.com/v1/chat/completions
   ```
   ⚠️ 该 API 频繁超时（限流），超时则用本地像素分析（PIL）兜底
-- Blender MCP 可用（GUI 模式运行中，端口 9876）
+- **Blender MCP（2026-08-16 重装为官方版）**：Blender Lab 官方扩展 v1.0.0（blender.org/lab/mcp-server）装于 extensions\user_default\mcp，Blender 内 socket bridge 监听 9876（Auto Start，需系统偏好 Online Access=use_online_access 开启）；外部 server 为官方 blmcp 包（venv: C:\blender-mcp-server\venv，python -m blmcp，默认 stdio，可 --transport http）。DSH 已通过 dsh-mcp-client stdio 接入（工具名 mcp__blender__*）。旧版 ahujasid addon 已删除。⚠️ 官方依赖 mcp>=1.2,<2（2.x 移除了 mcp.server.fastmcp）；mcpb 包是 server 端，扩展本体是 release 里的 zip
 
 ## 5. 环境备注
 

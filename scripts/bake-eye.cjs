@@ -105,7 +105,6 @@ function generatePartUVs(mesh, kind, backPole = false) {
       u = (x / size.x) + 0.5;
       v = (z / size.z) + 0.5;
     } else {
-      const r = Math.max(Math.hypot(x, z), 1e-5);
       u = (Math.atan2(z, x) / (Math.PI * 2)) + 0.5;
       v = (y / size.y) + 0.5;
     }
@@ -139,298 +138,17 @@ function mulberry32(seed) {
   };
 }
 
-function relocateRing(mesh, s, dz = 0) {
-  if (!mesh) return;
-  const pos = mesh.geometry.getAttribute("position");
-  for (let i = 0; i < pos.count; i += 1) {
-    pos.setX(i, pos.getX(i) * s);
-    pos.setY(i, pos.getY(i) * s);
-    pos.setZ(i, pos.getZ(i) + dz);
-  }
-  pos.needsUpdate = true;
-}
 
-/** Per-angle radial remap (Plan v6): for each vertex of `mesh`, scale its XY
- *  radius so the ring's OUTER edge lands `gap` inside the reference ring's
- *  outer (or inner) edge at the SAME angle. Uniform `relocateRing` cannot fix
- *  the SC/TM gap because both rings are elliptical (nasal +X large, temporal
- *  -X small) — per-angle remap keeps each ring's elliptical shape while making
- *  SC sit inside the ciliary body and TM kiss SC's inner wall everywhere. */
-function remapRingToReference(mesh, refMesh, refSide, gap, dz = 0) {
-  if (!mesh || !refMesh) return;
-  const BINS = 128;
-  const refPos = refMesh.geometry.getAttribute("position");
-  const refEdge = new Array(BINS).fill(refSide === "inner" ? Infinity : 0);
-  for (let i = 0; i < refPos.count; i += 1) {
-    const x = refPos.getX(i);
-    const y = refPos.getY(i);
-    const r = Math.hypot(x, y);
-    if (r < 0.3) continue;
-    let a = Math.atan2(y, x);
-    if (a < 0) a += Math.PI * 2;
-    const bin = Math.min(BINS - 1, Math.floor(a / (Math.PI * 2) * BINS));
-    if (refSide === "inner" ? r < refEdge[bin] : r > refEdge[bin]) refEdge[bin] = r;
-  }
-  for (let i = 0; i < BINS; i += 1) {
-    if (refSide === "inner" ? refEdge[i] === Infinity : refEdge[i] === 0) {
-      let j = 1;
-      while (j < BINS) {
-        const k = (i + j) % BINS;
-        if (refSide === "inner" ? refEdge[k] !== Infinity : refEdge[k] !== 0) {
-          refEdge[i] = refEdge[k];
-          break;
-        }
-        j += 1;
-      }
-    }
-  }
-  const pos = mesh.geometry.getAttribute("position");
-  const meshOuter = new Array(BINS).fill(0);
-  for (let i = 0; i < pos.count; i += 1) {
-    const x = pos.getX(i);
-    const y = pos.getY(i);
-    const r = Math.hypot(x, y);
-    if (r < 0.3) continue;
-    let a = Math.atan2(y, x);
-    if (a < 0) a += Math.PI * 2;
-    const bin = Math.min(BINS - 1, Math.floor(a / (Math.PI * 2) * BINS));
-    if (r > meshOuter[bin]) meshOuter[bin] = r;
-  }
-  // Linear interpolation between adjacent bins — bin-quantising both rings
-  // independently leaves up to half a bin of angular mismatch (the TM kiss
-  // came out 0.001-0.036 overlapped); interpolating cancels that error.
-  const edgeAt = (arr, a) => {
-    const f = (a / (Math.PI * 2)) * BINS;
-    const i = Math.floor(f) % BINS;
-    const t = f - Math.floor(f);
-    return arr[i] * (1 - t) + arr[(i + 1) % BINS] * t;
-  };
-  for (let i = 0; i < pos.count; i += 1) {
-    const x = pos.getX(i);
-    const y = pos.getY(i);
-    const r = Math.hypot(x, y);
-    const z = pos.getZ(i) + dz;
-    let scale = 1;
-    if (r >= 0.3) {
-      let a = Math.atan2(y, x);
-      if (a < 0) a += Math.PI * 2;
-      const outer = edgeAt(meshOuter, a);
-      if (outer > 0.3) {
-        scale = Math.max(0.2, (edgeAt(refEdge, a) - gap) / outer);
-      }
-    }
-    pos.setX(i, x * scale);
-    pos.setY(i, y * scale);
-    pos.setZ(i, z);
-  }
-  pos.needsUpdate = true;
-}
 
-/** Narrow a ring's band: keeps each vertex's angle and the ring's OUTER edge
- *  fixed, and pulls the inner edge outward so the band shrinks to
- *  `factor × current width`. Used to make the TM read as a thin filter strip
- *  (physiology) after it has been remapped to kiss SC's inner wall. */
-function narrowRingBand(mesh, factor) {
-  if (!mesh) return;
-  const BINS = 128;
-  const pos = mesh.geometry.getAttribute("position");
-  const inner = new Array(BINS).fill(1e9);
-  const outer = new Array(BINS).fill(0);
-  for (let i = 0; i < pos.count; i += 1) {
-    const x = pos.getX(i);
-    const y = pos.getY(i);
-    const r = Math.hypot(x, y);
-    if (r < 0.3) continue;
-    let a = Math.atan2(y, x);
-    if (a < 0) a += Math.PI * 2;
-    const b = Math.min(BINS - 1, Math.floor(a / (Math.PI * 2) * BINS));
-    if (r < inner[b]) inner[b] = r;
-    if (r > outer[b]) outer[b] = r;
-  }
-  const edgeAt = (arr, a) => {
-    const f = (a / (Math.PI * 2)) * BINS;
-    const i = Math.floor(f) % BINS;
-    const t = f - Math.floor(f);
-    return arr[i] * (1 - t) + arr[(i + 1) % BINS] * t;
-  };
-  for (let i = 0; i < pos.count; i += 1) {
-    const x = pos.getX(i);
-    const y = pos.getY(i);
-    const r = Math.hypot(x, y);
-    if (r < 0.3) continue;
-    let a = Math.atan2(y, x);
-    if (a < 0) a += Math.PI * 2;
-    const o = edgeAt(outer, a);
-    const inn = edgeAt(inner, a);
-    const band = o - inn;
-    if (band < 1e-4) continue;
-    // t = 1 at the inner edge, 0 at the outer edge; outer stays put.
-    const t = Math.min(1, Math.max(0, (o - r) / band));
-    const newR = o - t * band * factor;
-    pos.setX(i, (x / r) * newR);
-    pos.setY(i, (y / r) * newR);
-  }
-  pos.needsUpdate = true;
-}
 
-/** Map a ring's INNER edge onto a reference edge: the mesh's inner wall lands
- *  `gap` inside the reference ring's edge at the same angle, and the ring's
- *  band is compressed to `targetBand` (t: 0 at inner edge → refEdge − gap,
- *  t: 1 at outer edge → refEdge − gap + targetBand). Keeps the elliptical
- *  shape; the outer edge never gets to choose its radius, so a small
- *  targetBand guarantees the whole ring stays inside the reference. Used for
- *  TM: inner wall kisses SC's outer wall, TM tube is a thin strip. */
-function remapRingInnerToReference(mesh, refMesh, refSide, gap, targetBand, dz = 0) {
-  if (!mesh || !refMesh) return;
-  const BINS = 128;
-  const refPos = refMesh.geometry.getAttribute("position");
-  const refEdge = new Array(BINS).fill(refSide === "inner" ? Infinity : 0);
-  for (let i = 0; i < refPos.count; i += 1) {
-    const x = refPos.getX(i);
-    const y = refPos.getY(i);
-    const r = Math.hypot(x, y);
-    if (r < 0.3) continue;
-    let a = Math.atan2(y, x);
-    if (a < 0) a += Math.PI * 2;
-    const bin = Math.min(BINS - 1, Math.floor(a / (Math.PI * 2) * BINS));
-    if (refSide === "inner" ? r < refEdge[bin] : r > refEdge[bin]) refEdge[bin] = r;
-  }
-  for (let i = 0; i < BINS; i += 1) {
-    if (refSide === "inner" ? refEdge[i] === Infinity : refEdge[i] === 0) {
-      let j = 1;
-      while (j < BINS) {
-        const k = (i + j) % BINS;
-        if (refSide === "inner" ? refEdge[k] !== Infinity : refEdge[k] !== 0) {
-          refEdge[i] = refEdge[k];
-          break;
-        }
-        j += 1;
-      }
-    }
-  }
-  const pos = mesh.geometry.getAttribute("position");
-  const meshInner = new Array(BINS).fill(1e9);
-  const meshOuter = new Array(BINS).fill(0);
-  for (let i = 0; i < pos.count; i += 1) {
-    const x = pos.getX(i);
-    const y = pos.getY(i);
-    const r = Math.hypot(x, y);
-    if (r < 0.3) continue;
-    let a = Math.atan2(y, x);
-    if (a < 0) a += Math.PI * 2;
-    const bin = Math.min(BINS - 1, Math.floor(a / (Math.PI * 2) * BINS));
-    if (r < meshInner[bin]) meshInner[bin] = r;
-    if (r > meshOuter[bin]) meshOuter[bin] = r;
-  }
-  const edgeAt = (arr, a) => {
-    const f = (a / (Math.PI * 2)) * BINS;
-    const i = Math.floor(f) % BINS;
-    const t = f - Math.floor(f);
-    return arr[i] * (1 - t) + arr[(i + 1) % BINS] * t;
-  };
-  for (let i = 0; i < pos.count; i += 1) {
-    const x = pos.getX(i);
-    const y = pos.getY(i);
-    const r = Math.hypot(x, y);
-    const z = pos.getZ(i) + dz;
-    let newR = r;
-    if (r >= 0.3) {
-      let a = Math.atan2(y, x);
-      if (a < 0) a += Math.PI * 2;
-      const inn = edgeAt(meshInner, a);
-      const out = edgeAt(meshOuter, a);
-      const band = out - inn;
-      if (band > 1e-4) {
-        const t = Math.min(1, Math.max(0, (r - inn) / band));
-        newR = edgeAt(refEdge, a) - gap + t * targetBand;
-      }
-    }
-    const scale = r > 1e-6 ? newR / r : 1;
-    pos.setX(i, x * scale);
-    pos.setY(i, y * scale);
-    pos.setZ(i, z);
-  }
-  pos.needsUpdate = true;
-}
 
-/** Builds the 28 collector channels as fine lines (THREE.Line — not tubes,
- *  ~1/10 the calibre of SC). They leave the outer wall of Schlemm's canal
- *  (r = SC outer wall = 1.28, just outside the ciliary body's outer rim,
- *  z = 0.92 at the ciliary body's posterior rim) and run radially through the
- *  sclera to its surface (r≈1.55). Distribution: 28 total, nasal-dominant
- *  (inferonasal densest), per the literature. */
-function buildCollectorChannels() {
-  const SC_R = 1.28;
-  const END_R = 1.55;
-  const Z = 0.92;
-  const rand = mulberry32(77);
-  const positions = [];
-  const addLine = (thetaDeg) => {
-    const a = THREE.MathUtils.degToRad(thetaDeg);
-    const curve = new THREE.CatmullRomCurve3([
-      new THREE.Vector3(Math.cos(a) * SC_R, Math.sin(a) * SC_R, Z),
-      new THREE.Vector3(Math.cos(a + 0.05) * (SC_R + 0.28), Math.sin(a + 0.05) * (SC_R + 0.28), Z + 0.03),
-      new THREE.Vector3(Math.cos(a + 0.015) * END_R, Math.sin(a + 0.015) * END_R, Z + 0.015),
-    ]);
-    curve.getPoints(7).forEach((p) => positions.push(p.x, p.y, p.z));
-  };
-  const pick = (start, end, n) => {
-    const out = [];
-    for (let i = 0; i < n; i += 1) {
-      out.push(start + ((i + 0.5) / n) * (end - start) + (rand() - 0.5) * 6);
-    }
-    return out;
-  };
-  // 0° = +X (nasal for the left eye), 90° = +Y, 180° = -X, 270° = -Y
-  const angles = [
-    ...pick(278, 352, 9), // inferonasal: 10 (9 in 278-352 + 1 near +X)
-    ...pick(354, 356, 1),
-    ...pick(12, 78, 6),   // superonasal: 6
-    ...pick(192, 258, 6), // inferotemporal: 6
-    ...pick(102, 168, 6), // superotemporal: 6
-  ];
-  if (angles.length !== 28) throw new Error(`CC count ${angles.length} != 28`);
-  angles.forEach(addLine);
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute("position", new THREE.Float32BufferAttribute(new Float32Array(positions), 3));
-  const mesh = new THREE.Line(geo, new THREE.LineBasicMaterial({ color: 0xd9c27a, transparent: true, opacity: 0.9 }));
-  mesh.name = "VH_M_collector_channel_L";
-  mesh.userData.baked = true;
-  mesh.frustumCulled = false;
-  return mesh;
-}
 
-/** Build an interpolator r_inner(z) from the sclera's inner surface
- *  (min radius per z-slice, averaged over angle). Used as the radial target
- *  curve when stretching the ciliary body along the eye axis. */
-function buildScleraInnerProfile(scleraMesh, z0, z1, zbins) {
-  const pos = scleraMesh.geometry.getAttribute("position");
-  const inner = new Array(zbins).fill(1e9);
-  for (let i = 0; i < pos.count; i += 1) {
-    const z = pos.getZ(i);
-    const f = (z - z0) / (z1 - z0);
-    if (f < 0 || f >= 1) continue;
-    const r = Math.hypot(pos.getX(i), pos.getY(i));
-    const b = Math.floor(f * zbins);
-    if (r < inner[b]) inner[b] = r;
-  }
-  // nearest-neighbor fill for empty bins
-  for (let b = 0; b < zbins; b += 1) {
-    if (inner[b] !== 1e9) continue;
-    for (let j = 1; j < zbins; j += 1) {
-      if (b - j >= 0 && inner[b - j] !== 1e9) { inner[b] = inner[b - j]; break; }
-      if (b + j < zbins && inner[b + j] !== 1e9) { inner[b] = inner[b + j]; break; }
-    }
-  }
-  return (z) => {
-    const f = (z - z0) / (z1 - z0);
-    const fb = Math.min(zbins - 1, Math.max(0, f * zbins));
-    const i = Math.floor(fb);
-    const i2 = Math.min(zbins - 1, i + 1);
-    const t = fb - i;
-    return inner[i] * (1 - t) + inner[i2] * t;
-  };
-}
+
+
+
+
+
+
 
 /** Phase 2: stretch a ciliary ring along the eye axis (anterior end anchored)
  *  and remap each vertex's radius so the ring keeps hugging the sclera's inner
@@ -488,32 +206,7 @@ function retractAnteriorZ(mesh, zBreak, zNewMax, scleraInner) {
   pos.needsUpdate = true;
 }
 
-/** Phase 3a: thicken the cornea centre (inner surface only) to ~0.5 mm. The
- *  outer (anterior) surface stays fixed; the posterior surface is pushed back
- *  near the axis, tapering to zero at `taperRadius`. */
-function thickenCorneaCenter(mesh, targetThickness, taperRadius) {
-  if (!mesh) return;
-  const pos = mesh.geometry.getAttribute("position");
-  let apexZ = -1e9;
-  for (let i = 0; i < pos.count; i += 1) apexZ = Math.max(apexZ, pos.getZ(i));
-  let innerCenterZ = 1e9;
-  for (let i = 0; i < pos.count; i += 1) {
-    if (Math.hypot(pos.getX(i), pos.getY(i)) < 0.1) innerCenterZ = Math.min(innerCenterZ, pos.getZ(i));
-  }
-  const curThick = apexZ - innerCenterZ;
-  const delta = targetThickness - curThick;
-  if (delta <= 0) return;
-  const innerThreshold = apexZ - curThick * 0.5;
-  for (let i = 0; i < pos.count; i += 1) {
-    const z = pos.getZ(i);
-    if (z >= innerThreshold) continue; // outer surface
-    const r = Math.hypot(pos.getX(i), pos.getY(i));
-    const taper = Math.max(0, 1 - r / taperRadius);
-    if (taper <= 0) continue;
-    pos.setZ(i, z - delta * taper);
-  }
-  pos.needsUpdate = true;
-}
+
 
 /** Phase 4: re-profile a ciliary ring's cross-section. Keeps the outer edge on
  *  the sclera inner surface and remaps the inner edge so the radial band equals
@@ -588,42 +281,7 @@ function reprofileMuscle(mesh, scleraInner) {
   reprofileCiliary(mesh, (z) => (0.085 * Math.max(0, z - 0.6)) / 0.608, scleraInner);
 }
 
-/** Phase 4: rebuild the ciliary processes as `ridgeCount` discrete radial
- *  ridges on the anterior inner face of the ciliary body (pars plicata). Each
- *  ridge is a thin triangular prism projecting inward by `H`. */
-function buildCiliaryProcessesRidges(scleraInner, tBody, ridgeCount) {
-  const z0 = 0.908; // pars plicata posterior edge
-  const z1 = 1.208; // anterior edge
-  const H = 0.12;   // ridge height (0.8 mm)
-  const w = 0.04;   // ridge half-width (radians) ~0.5mm arc at r~0.9
-  const positions = [];
-  const tri = (a, b, c) => { positions.push(a[0], a[1], a[2], b[0], b[1], b[2], c[0], c[1], c[2]); };
-  const vert = (theta, z, rInset) => {
-    const r = scleraInner(z) - tBody(z) - rInset; // rInset 0=outer(attached), H=inner tip
-    return [Math.cos(theta) * r, Math.sin(theta) * r, z];
-  };
-  for (let i = 0; i < ridgeCount; i += 1) {
-    const th = (i / ridgeCount) * Math.PI * 2;
-    const fO1 = vert(th - w, z1, 0);
-    const fO2 = vert(th + w, z1, 0);
-    const fI = vert(th, z1, H);
-    const bO1 = vert(th - w, z0, 0);
-    const bO2 = vert(th + w, z0, 0);
-    const bI = vert(th, z0, H);
-    tri(fO1, fO2, fI); // front
-    tri(bO1, bI, bO2); // back
-    tri(fO1, fI, bO1); tri(bO1, fI, bI); // inner side
-    tri(fO2, bO2, fI); tri(fI, bO2, bI); // inner side 2
-    tri(fO1, bO1, fO2); tri(bO1, bO2, fO2); // outer side
-  }
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute("position", new THREE.Float32BufferAttribute(new Float32Array(positions), 3));
-  geo.computeVertexNormals();
-  const mesh = new THREE.Mesh(geo);
-  mesh.name = "VH_M_ciliary_processes_L";
-  mesh.frustumCulled = false;
-  return mesh;
-}
+
 
 /** Phase 3b: re-profile the cornea to the anatomical thickness profile
  *  (centre ~0.5 mm -> edge ~1.17 mm) by rebuilding the INNER surface along
@@ -782,104 +440,7 @@ function thinSclera(scleraMesh, thicknessFn) {
   pos.needsUpdate = true;
 }
 
-/** Phase 6: set a ring band's RADIAL thickness to a fixed value, keeping the
- *  outer edge fixed and moving the inner edge to `outer - targetBand`. Used to
- *  match the limbus (corneoscleral junction) shell thickness to the cornea and
- *  sclera (all 1.17 mm).
- *
- *  Per-(angle x z) granularity: the limbus is a SLOPED transition band (its
- *  radius changes along z as it tilts between cornea and sclera), so a
- *  per-angle-only outer/inner sample mixes the z-slope into the band and
- *  leaves some angles too thick (1.25-1.64 mm). We sample the outer surface
- *  per (angle, z) bin and move each inner vertex to outerAt(a, z) - target. */
-function reprofileRingBand(mesh, targetBand) {
-  if (!mesh) return;
-  const AB = 64;
-  const ZB = 32;
-  const pos = mesh.geometry.getAttribute("position");
-  let nor = mesh.geometry.getAttribute("normal");
-  if (!nor) { mesh.geometry.computeVertexNormals(); nor = mesh.geometry.getAttribute("normal"); }
-  let zmin = 1e9;
-  let zmax = -1e9;
-  for (let i = 0; i < pos.count; i += 1) {
-    const z = pos.getZ(i);
-    zmin = Math.min(zmin, z);
-    zmax = Math.max(zmax, z);
-  }
-  const angleBin = (a) => {
-    if (a < 0) a += Math.PI * 2;
-    return Math.min(AB - 1, Math.floor((a / (Math.PI * 2)) * AB));
-  };
-  const zBin = (z) => Math.min(ZB - 1, Math.max(0, Math.floor(((z - zmin) / (zmax - zmin + 1e-6)) * ZB)));
-  // sample the OUTER surface (radial normal points outward) per (a, z)
-  const outer = new Array(AB * ZB).fill(0);
-  for (let i = 0; i < pos.count; i += 1) {
-    const x = pos.getX(i);
-    const y = pos.getY(i);
-    const z = pos.getZ(i);
-    const r = Math.hypot(x, y);
-    if (r < 0.3) continue;
-    const dot = (nor.getX(i) * x + nor.getY(i) * y) / r;
-    if (dot < -0.05) continue; // inner surface only
-    const idx = zBin(z) * AB + angleBin(Math.atan2(y, x));
-    if (r > outer[idx]) outer[idx] = r;
-  }
-  // fill empty bins (nearest along angle, then along z)
-  for (let zb = 0; zb < ZB; zb += 1) {
-    for (let ab = 0; ab < AB; ab += 1) {
-      if (outer[zb * AB + ab] > 1e-4) continue;
-      let best = 0;
-      for (let d = 1; d < AB && best === 0; d += 1) {
-        const l = (ab - d + AB) % AB;
-        const rr = (ab + d) % AB;
-        if (outer[zb * AB + l] > 1e-4) best = outer[zb * AB + l];
-        else if (outer[zb * AB + rr] > 1e-4) best = outer[zb * AB + rr];
-      }
-      if (best === 0) {
-        for (let dz = 1; dz < ZB; dz += 1) {
-          if (zb - dz >= 0 && outer[(zb - dz) * AB + ab] > 1e-4) { best = outer[(zb - dz) * AB + ab]; break; }
-          if (zb + dz < ZB && outer[(zb + dz) * AB + ab] > 1e-4) { best = outer[(zb + dz) * AB + ab]; break; }
-        }
-      }
-      if (best > 0) outer[zb * AB + ab] = best;
-    }
-  }
-  const outerAt = (a, z) => {
-    const af = (a / (Math.PI * 2)) * AB;
-    const a0 = Math.floor(af) % AB;
-    const a1 = (a0 + 1) % AB;
-    const at = af - Math.floor(af);
-    const zf = ((z - zmin) / (zmax - zmin + 1e-6)) * ZB;
-    const z0 = Math.min(ZB - 1, Math.max(0, Math.floor(zf)));
-    const z1 = Math.min(ZB - 1, z0 + 1);
-    const zt = zf - Math.floor(zf);
-    const v00 = outer[z0 * AB + a0];
-    const v01 = outer[z0 * AB + a1];
-    const v10 = outer[z1 * AB + a0];
-    const v11 = outer[z1 * AB + a1];
-    const v0 = v00 * (1 - at) + v01 * at;
-    const v1 = v10 * (1 - at) + v11 * at;
-    return v0 * (1 - zt) + v1 * zt;
-  };
-  for (let i = 0; i < pos.count; i += 1) {
-    const x = pos.getX(i);
-    const y = pos.getY(i);
-    const z = pos.getZ(i);
-    const r = Math.hypot(x, y);
-    if (r < 0.3) continue;
-    const dot = (nor.getX(i) * x + nor.getY(i) * y) / r;
-    if (dot >= -0.05) continue; // outer surface stays fixed
-    let a = Math.atan2(y, x);
-    if (a < 0) a += Math.PI * 2;
-    const o = outerAt(a, z);
-    const rNew = o - targetBand;
-    if (rNew < 0.05) continue;
-    const c = r > 1e-6 ? rNew / r : 0;
-    pos.setX(i, x * c);
-    pos.setY(i, y * c);
-  }
-  pos.needsUpdate = true;
-}
+
 
 /** Phase 3b: scale the cornea's XY extent so its diameter matches the
  *  anatomical value (~11.5 mm, down from the HRA 13.5 mm). Z is untouched.
@@ -940,7 +501,7 @@ function buildFullOuterProfile(mesh, z0, z1, zbins) {
 
 /** Build a per-z profile of a shell's INNER surface (min r of inner-surface
  *  vertices, identified by the radial normal pointing inward) over the FULL
- *  z range. Unlike buildScleraInnerProfile (anterior zone only), this covers
+ *  z range. Unlike buildScleraInnerProfile's removed predecessor (anterior zone only), this covers
  *  the posterior pole, which choroid/retina need. */
 function buildFullInnerProfile(mesh, z0, z1, zbins) {
   const pos = mesh.geometry.getAttribute("position");
