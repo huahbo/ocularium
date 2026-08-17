@@ -214,3 +214,4 @@ HRA 眼模型（`source/eye-anatomy.glb`，26MB 原始，来自美国 Human Refe
 - dev 服务器：`npm run dev`（3000 端口，若占用自动换 3001）
 - Blender 5.2.0 LTS：`E:\Blender\blender-5.2.0-windows-x64\blender.exe`（GUI 运行中）
 - 后端临时目录：`C:\Users\ADMINI~1\AppData\Local\Temp\opencode`
+- **DSH web 常驻实例（2026-08-17 踩坑）**：DSH 沙箱 pwsh 里 `Start-Process` 起的进程会在命令结束后被清理（3081 曾因此挂掉）。**正确常驻方式**：`wmic process call create "<node.exe> <dsh bin.js> --profile web --port 3081"`（脱离进程树，父进程为 WmiPrvSE.exe）；或用户在自己 PS7 终端里直接跑 `dsh web`。3081 = better-sidebar 验证实例（已装 `dsh-better-sidebar@0.12.3` 于 web profile）；3080 = 旧实例（装插件前启动，重启后才带侧边栏）
