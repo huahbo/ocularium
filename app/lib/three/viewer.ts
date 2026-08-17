@@ -37,7 +37,9 @@ export class AnatomyViewer {
   private contactShadow!: THREE.Mesh;
 
   private frame = 0;
-  private clock = new THREE.Clock();
+  // THREE.Clock is deprecated in r185+; Timer.getDelta() is the drop-in (it
+  // measures wall time per call, so the visibility-change reset is unneeded).
+  private timer = new THREE.Timer();
   private resizeObserver: ResizeObserver;
   private intersectionObserver: IntersectionObserver;
   private clipPlane = new THREE.Plane(new THREE.Vector3(-1, 0, 0), 0);
@@ -631,7 +633,7 @@ export class AnatomyViewer {
     this.frame = requestAnimationFrame(this.animate);
     if (!this.isVisible || !this.isPageVisible) return;
 
-    const delta = Math.min(this.clock.getDelta(), 0.05);
+    const delta = Math.min(this.timer.getDelta(), 0.05);
     const now = performance.now();
 
     this.applyAutoRotate(now);
@@ -667,7 +669,8 @@ export class AnatomyViewer {
   private onVisibilityChange = () => {
     this.isPageVisible = !document.hidden;
     if (this.isPageVisible) {
-      this.clock.start();
+      // Timer.getDelta() is wall-time based and the loop clamps to 0.05, so a
+      // long hidden period cannot produce a huge jump — no reset needed.
       this.dirty = true;
     }
   };

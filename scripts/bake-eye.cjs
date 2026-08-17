@@ -30,7 +30,11 @@ const { mergeGeometries } = require("three/examples/jsm/utils/BufferGeometryUtil
 
 const ROOT = path.resolve(__dirname, "..");
 const INPUT = process.argv[2] || "source/eye-anatomy.glb";
-const OUTPUT = process.argv[3] || "public/models/eye-anatomy-baked.glb";
+// Intermediate output stays OUT of public/ — it is never served at runtime
+// (the draco-compressed eye-anatomy.glb is), and a 56 MB file in public/ gets
+// copied into every build's dist. Compress with:
+//   npx @gltf-transform/cli draco .bake/eye-anatomy-baked.glb public/models/eye-anatomy.glb
+const OUTPUT = process.argv[3] || ".bake/eye-anatomy-baked.glb";
 
 // ---- geometry-kind lookup (must mirror anatomy-materials.ts) ----
 const PART_FROM_MESH = {
@@ -1029,6 +1033,7 @@ function attachVitreousToLens(vitreousMesh, lensMesh) {
     new GLTFExporter().parse(gltf.scene, res, rej, { binary: true, onlyVisible: false }),
   );
   const out = path.join(ROOT, OUTPUT);
+  fs.mkdirSync(path.dirname(out), { recursive: true });
   fs.writeFileSync(out, Buffer.from(exported));
   const mb = (fs.statSync(out).size / 1048576).toFixed(2);
   console.log(`written ${OUTPUT} (${mb} MB)`);

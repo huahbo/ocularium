@@ -68,7 +68,7 @@
 - **体积**：烘焙版 51MB → draco 压至 **2.33MB**（原 26MB，-91%）。draco 量化 position 安全（运行时不再细分，无 KHR_mesh_quantization 死循环问题）
 - **加载实测**（headless 冷加载）：模型 **1.2s 渲染完成**（原 12s，快 10 倍），截图无阻塞跳跃
 - **关键结论**：加载慢真根因是 LoopSubdivision（原始版 8.1s：vitreous 4.7s/choroid 1.3s/sclera 0.8s/retina 0.7s/cornea 0.5s），非模型体积。vitreous 已移出细分（透明凝胶无视觉收益）
-- **重新生成**：`node scripts/bake-eye.cjs` → 输出 `public/models/eye-anatomy-baked.glb`（51MB），再 `npx @gltf-transform/cli draco public/models/eye-anatomy-baked.glb public/models/eye-anatomy.glb`
+- **重新生成**：`node scripts/bake-eye.cjs` → 输出 `.bake/eye-anatomy-baked.glb`（51MB，gitignored，不进 public/dist），再 `npx @gltf-transform/cli draco .bake/eye-anatomy-baked.glb public/models/eye-anatomy.glb`
 - **回退**：原始 26MB 在 `C:\Users\ADMINI~1\AppData\Local\Temp\opencode\eye-anatomy-original.glb`（换回 + 运行时 baked 检测自动走旧路径，代码兼容）；烘焙 draco 版备份 `eye-anatomy-baked-draco.glb`
 - **踩坑**：① meshopt 量化 position→[-1,1]→细分死循环（勿用）② draco 本地解码+细分>原始传输（烘焙前方案），烘焙后 draco 安全
 

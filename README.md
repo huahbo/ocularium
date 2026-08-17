@@ -1,6 +1,6 @@
 # Ocularium — Anatomy of vision, in 3D
 
-An interactive 3D anatomy lab for the human eye: peel through 23 layered
+An interactive 3D anatomy lab for the human eye: peel through 24 layered
 structures, take guided tours and quizzes, and watch the aqueous humour flow —
 all in the browser.
 
@@ -12,7 +12,7 @@ all in the browser.
 
 ## Features
 
-- **Layered 3D specimen** — the HRA eye model (23 structures) with per-layer
+- **Layered 3D specimen** — the HRA eye model (24 structures) with per-layer
   peel, opacity control, and three view modes (Layered / Anatomy / Outflow).
 - **Structure search** — find any structure and fly the camera to it.
 - **Interactive 3D quiz** — 10 Identify/Find questions answered by clicking the
@@ -46,7 +46,7 @@ node scripts/bake-eye.cjs   # regenerate the baked eye GLB (see HANDOFF.md)
 
 ## Attribution
 
-The fine anatomical eye model (23 layered structures) is derived from the
+The fine anatomical eye model (24 layered structures) is derived from the
 **Human Reference Atlas (HRA)** 3D Reference Object Library, built from the US
 National Library of Medicine's Visible Human Project dataset:
 

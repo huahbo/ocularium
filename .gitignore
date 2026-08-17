@@ -52,8 +52,9 @@ next-env.d.ts
 /source/
 
 # intermediate bake output
-public/models/eye-anatomy-baked.glb
+/.bake/
 
 # local reference literature (downloaded, not project code)
 references/
-`n# e2e regression artifacts`ntests/artifacts/
+# e2e regression artifacts
+tests/artifacts/
