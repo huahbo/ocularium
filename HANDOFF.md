@@ -184,7 +184,7 @@ HRA 眼模型（`source/eye-anatomy.glb`，26MB 原始，来自美国 Human Refe
 - **症状**：`npm run start` 后页面 HTML 正常（SSR），但 `/assets/*.js`、`/models/*` 全部 404；根文件（favicon 等）正常
 - **根因**：vinext 0.0.50（及 1.0.0-beta.x）`StaticFileCache` 缓存键用 `path.relative` 的**反斜杠**（`/assets\\index.js`），而请求 pathname 是正斜杠 → Map 永远 miss（根文件无分隔符不受影响）
 - **修复**：`scripts/patch-vinext-static-cache.cjs`（幂等，postinstall 自动应用）：缓存键 `replaceAll(path.sep, "/")`
-- **回归脚本**：`npm run e2e`（scripts/e2e-regression.mjs）——12 项断言：24 层/剥离/quiz（含空点击不记错）/tour；需要 `npm run start` + chromium 1234（`npx playwright-core@1.62.1 install chromium`）
+- **回归脚本**：`npm run e2e`（scripts/e2e-regression.mjs）——**23 项断言**：24 层/三模式切换（Layered/Anatomy/Outflow）/剥离/quiz（含空点击不记错）/tour/搜索过滤/层高亮/透明度滑杆/X-Ray/无 JS 错误；需要 `npm run start` + chromium 1234（`npx playwright-core@1.62.1 install chromium`）。⚠️ 跑前确保无残留 chrome-headless-shell 进程（僵尸进程会拖慢截图 10 倍）
 - **Playwright 注意**：headless 下 WebGL readPixels 极慢（每截图 ~12s），timeout 要给足；locator.click 对 gsap data-reveal 元素误判不可见 → 脚本用物理坐标点击
 
 ## 5. 环境备注

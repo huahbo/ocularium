@@ -13,6 +13,11 @@ const check = (name, ok, extra = "") => {
   console.log((ok ? "PASS" : "FAIL") + "  " + name + (extra ? "  [" + extra + "]" : ""));
 };
 async function clickEl(page, locator) {
+  // Model loads (especially Anatomy mode) cover the chrome with .model-loader;
+  // wait it away so the click lands on the actual control. Also scroll the
+  // target into view — mouse.click does not auto-scroll like locator.click.
+  await page.waitForSelector(".model-loader", { state: "detached", timeout: 45000 }).catch(() => {});
+  await locator.scrollIntoViewIfNeeded().catch(() => {});
   const box = await locator.boundingBox();
   if (!box) throw new Error("no bounding box");
   await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
@@ -33,6 +38,27 @@ try {
   check("page title", (await page.title()).includes("Ocularium"));
   const layerCount = await page.locator(".structure-item").count();
   check("structure rail 24 layers", layerCount === 24, "count=" + layerCount);
+
+    // ---- mode switch (Layered -> Anatomy -> Outflow -> Layered) ----
+  // Anatomy/Outflow reload the GLB, which (headless) takes a while and covers
+  // the chrome with .model-loader — retry the click until the tab selects.
+  const modes = page.locator(".mode-switch button");
+  const modeNames = await modes.allTextContents();
+  check("mode switch has 3 tabs", modeNames.length === 3, modeNames.map(s => s.trim()).join(","));
+  const modeClick = async (i) => {
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+      await page.waitForSelector(".model-loader", { state: "detached", timeout: 45000 }).catch(() => {});
+      const box = await modes.nth(i).boundingBox();
+      if (!box) throw new Error("no mode tab box");
+      await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+      await page.waitForTimeout(900);
+      if ((await modes.nth(i).getAttribute("aria-selected")) === "true") return true;
+    }
+    return false;
+  };
+  check("anatomy mode selected", await modeClick(1));
+  check("outflow mode selected", await modeClick(2));
+  check("back to layered mode", await modeClick(0));
 
   // ---- peel ----
   const corneaEye = page.locator(".structure-item", { hasText: "Cornea" }).first().locator(".structure-eye");
@@ -82,8 +108,49 @@ try {
   await page.waitForTimeout(600);
   check("tour closes", (await page.locator(".tour-card").count()) === 0);
 
-  log("final shot...");
-  await page.screenshot({ path: "tests/artifacts/home-final.png" });
+  // ---- structure search filters the rail ----
+  await page.locator(".structure-search input").fill("retina");
+  await page.waitForTimeout(500);
+  const filtered = await page.locator(".structure-item").count();
+  check("search 'retina' filters rail", filtered === 2, "count=" + filtered);
+  await page.locator(".structure-search-clear").click({ force: true }).catch(() => {});
+  await page.locator(".structure-search input").fill("");
+  await page.waitForTimeout(500);
+  check("search clears back to 24", (await page.locator(".structure-item").count()) === 24);
+
+  // ---- rail selection highlights the layer ----
+  const choroidItem = page.locator(".structure-item", { hasText: "Choroid" }).first();
+  await clickEl(page, choroidItem);
+  await page.waitForTimeout(900);
+  check("choroid row active", (await choroidItem.getAttribute("aria-pressed")) === "true");
+
+  // ---- opacity slider for a transparent layer ----
+  await clickEl(page, page.locator(".structure-item", { hasText: "Cornea" }).first());
+  await page.waitForTimeout(700);
+  const slider = page.locator(".structure-slider input");
+  check("opacity slider appears for cornea", (await slider.count()) === 1);
+  await slider.evaluate((el) => {
+    const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set;
+    setter.call(el, "30");
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+  await page.waitForTimeout(600);
+  const pct = (await page.locator(".structure-slider em").textContent()).trim();
+  check("opacity slider sets 30%", pct === "30%", pct);
+  // reset selection
+  await clickEl(page, page.locator(".brand"));
+  await page.waitForTimeout(500);
+
+  // ---- X-Ray tool toggle ----
+  const xray = page.locator(".tool-button", { hasText: "X-Ray" }).first();
+  await clickEl(page, xray);
+  await page.waitForTimeout(600);
+  check("xray activates", (await xray.getAttribute("aria-pressed")) === "true");
+  await clickEl(page, xray);
+  await page.waitForTimeout(600);
+  check("xray deactivates", (await xray.getAttribute("aria-pressed")) === "false");
+
+  log("final state ok");
 } catch (e) {
   check("unhandled error: " + e.message.split("\n")[0], false);
   log("ERROR: " + e.message);
