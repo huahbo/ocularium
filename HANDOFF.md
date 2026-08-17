@@ -1,7 +1,7 @@
 # Anatomy Atelier — 开发进度交接文档（HANDOFF）
 
 > 用途：上下文清理后，由新会话读取此文档 + 恢复提示词，无缝继续开发。
-> 最后更新：2026-08-16（健康基线见 `REPORT.md`：next 16.3.1 / lint 0 errors / audit 0 高危）
+> 最后更新：2026-08-17。健康基线与执行记录见仓库内 `REPORT.md`（已入库）：next 16.3.1 / lint 0 errors / audit 0 / e2e 23/23。
 
 ---
 
