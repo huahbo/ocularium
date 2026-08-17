@@ -2,6 +2,8 @@
 
 > 用途：上下文清理后，由新会话读取此文档 + 恢复提示词，无缝继续开发。
 > 最后更新：2026-08-17。健康基线与执行记录见仓库内 `REPORT.md`（已入库）：next 16.3.1 / lint 0 errors / audit 0 / e2e 23/23。
+>
+> 2026-08-17 追加：**`source/eye-anatomy.glb` 已入库**（24.8MB，烘焙输入可复现；`.gitignore` 用 `!/source/eye-anatomy.glb` 例外）；**bake 几何断言已固化为单测** `tests/bake-geometry.test.mjs`（10 项，CI 与 `npm test` 均运行）；`scripts/bake-eye.cjs` 已模块化（导出 `runBake`/各阶段函数，CLI 行为不变）。
 
 ---
 
@@ -149,7 +151,7 @@
 
 HRA 眼模型（`source/eye-anatomy.glb`，26MB 原始，来自美国 Human Reference Atlas / Visible Human）的原始数据本身有多处问题，**所有显示逻辑必须使用修正后的数据，不能直接使用原始坐标**：
 
-1. **SC/TM 位置错误（最麻烦，已修）**：原始数据 TM 半径 0.885、SC 半径 0.864，掉在**睫状体环的内孔**里。最终方案（2026-08-15 plan-A 起）：**逐角度 remap**——SC 每方向外缘 = 睫状体外缘 − 0.10（`remapRingToReference`），TM 每方向外缘 = SC 内缘 − 0.005（`remapRingInnerToReference`），z 对齐睫状体后缘平面。历史 `relocateRing`（均匀缩放）等 10 个旧函数已成死代码。**重新烘焙后必须验证实际 bbox**（12 扇区对比）。
+1. **SC/TM 位置错误（最麻烦，已修）**：原始数据 TM 半径 0.885、SC 半径 0.864，掉在**睫状体环的内孔**里。现行方案（Plan A 重渲染起）：**`attachRingToScleraInner` 锚定变薄后的 sclera 内表面**——SC 贴 `sclInFull(z) + 0.05`（进巩膜组织 ~0.33mm），TM 贴 `sclInFull(z) − 0.03`（前房角侧），z 带 SC [1.24,1.40] / TM [1.22,1.40]，保留环带椭圆形态（每顶点保持与中位半径的偏差）。更早的 `relocateRing`/`remapRingToReference` 等历史函数已删。**重新烘焙后必须验证实际 bbox——已固化为单测**：`tests/bake-geometry.test.mjs`（12 扇区逐顶点 r < 巩膜外表面、TM 每扇区外壁 < SC、SC/TM z 带与中位半径锚定、角膜 11.5mm 直径、巩膜 1.17mm 厚度、choroid/retina 回缩与截断、vitreous 贴 lens、UV/细分/baked 标志、23 mesh 完整性）。
 2. **嵌套 mesh 连带隐藏（已修）**：fovea / macula lutea / optic disc 是 **retina 的子节点**；ciliary muscle 是 **ciliary body 的子节点**——父级从 rail 隐藏时子级连带隐藏（Three.js 规则）。`viewer.ts` 的 `flattenNestedMeshes` 在加载后把它们解绑到 model 根（保持局部变换，位置不变）。
 3. **原始 GLB 无 UV**：所有 mesh 没有 TEXCOORD——运行时 `generatePartUVs` 按几何类型投影（sphere/plane/cylinder/radial），烘焙版已生成 UV（`userData.baked` 跳过）。
 4. **mesh 名称在 draco 压缩后丢失**：`eye-anatomy.glb`（压缩版）的 mesh.name 为空——但 **node 名保留**（`VH_M_*_L`），three GLTFLoader 用 node 名填充 mesh.name——运行时按 mesh.name 匹配 layer id（`partIdForMesh`）。**不要用 gltf-transform 删除/重命名 node**。

@@ -49,7 +49,8 @@ next-env.d.ts
 /.omo/
 /.codegraph/
 
-/source/
+/source/*
+!/source/eye-anatomy.glb
 
 # intermediate bake output
 /.bake/

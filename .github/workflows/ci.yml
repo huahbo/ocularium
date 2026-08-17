@@ -28,5 +28,5 @@ jobs:
       - name: Lint
         run: npm run lint
 
-      - name: Test rendered HTML
-        run: node --test tests/rendered-html.test.mjs
+      - name: Test rendered HTML + bake geometry
+        run: node --test tests/rendered-html.test.mjs tests/bake-geometry.test.mjs

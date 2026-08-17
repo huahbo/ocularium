@@ -11,12 +11,12 @@
 | lint | ✅ **0 errors / 1 warning**（no-img-element 设计性保留；初始 42 errors / 758 warnings） |
 | audit | ✅ **0 高危**（初始 4 HIGH；next 16.2.6 → 16.3.1） |
 | 构建 | ✅ vinext build 绿；three/gsap/framework/viewer 独立 chunk，>500KB 警告消除 |
-| 测试 | ✅ SSR 2/2 + **e2e 23/23**（scripts/e2e-regression.mjs：模式切换/剥离/quiz 空点击不记错/tour/搜索/高亮/透明度滑杆/X-Ray） |
-| 资产 | ✅ tracked public 10.3MB → 5.7MB（死资产已删）；dist/client 64MB → 8.4MB（baked 移出） |
+| 测试 | ✅ SSR 2/2 + **e2e 23/23**（scripts/e2e-regression.mjs）+ **bake 几何单测 10/10**（tests/bake-geometry.test.mjs：23 mesh/UV/细分/SC-TM 12 扇区/角膜/巩膜/choroid-retina/vitreous-lens） |
+| 资产 | ✅ tracked public 10.3MB → 5.7MB（死资产已删）；dist/client 64MB → 8.4MB（baked 移出）；**source/eye-anatomy.glb 24.8MB 已入库**（烘焙可复现） |
 | 生产 | ✅ ocularium.huahbo.workers.dev HTTP 200 |
-| 数据一致性 | ✅ GLB 审计（Blender 实测）：23 mesh + 运行时 CC = 24 层，零缺失零多余，UV 正常 |
+| 数据一致性 | ✅ GLB 审计（Blender 实测）：23 mesh + 运行时 CC = 24 层，零缺失零多余，UV 正常；bake 管道几何断言已由单测锁定（源 GLB → runBake 全流程） |
 | 工具链 | ✅ Playwright MCP / Context7 已配置（新会话可用）；Blender MCP 官方版就绪（Blender 打开即恢复）；gh CLI 已认证 |
-| 剩余项 | ⏳ source/eye-anatomy.glb 未入库（26MB，烘焙不可复现）；bake 几何断言未提为单测；无其他阻塞项 |
+| 剩余项 | ✅ **无**（source GLB 已入库、bake 断言已提为单测；余下均为持续优化项，见下方执行记录） |
 
 ## 初始快照（2026-08-16 基线，问题均已解决，保留作演进记录）
 
@@ -139,3 +139,14 @@
 
 - REPORT.md 更新至最新状态并**入库推送**（随仓库演进，新会话可读）
 - 全量推送：main 与远端完全同步
+## 第七轮执行（2026-08-17，剩余项清零：烘焙可复现 + bake 单测）
+
+| 项 | 结果 |
+|---|---|
+| **source/eye-anatomy.glb 入库** | ✅ 24.8MB 源 GLB 提交（SHA256 与临时备份一致）；`.gitignore` 改为 `/source/*` + `!/source/eye-anatomy.glb` 例外；烘焙输入从此可复现 |
+| **bake-eye.cjs 模块化** | ✅ IIFE → 导出 `runBake`（P0-P10 全管道）/`exportBaked`/全部阶段函数 + `require.main` 守卫；CLI 行为不变（完整 bake 复验 54.04MB 输出）；顺带删除死代码 `mulberry32` 与 `mergeGeometries` 导入 |
+| **bake 几何断言提为单测** | ✅ `tests/bake-geometry.test.mjs` **10/10**：23 mesh 完整性、UV 全覆盖无 NaN、细分仅 sclera/cornea/choroid/retina、巩膜 1.17mm、角膜 11.5mm、SC/TM z 带+中位半径锚定 sclera 内表面、12 扇区逐顶点审计（SC 在巩膜内/TM 在 SC 内）、choroid/retina ora serrata 回缩+视神经孔截断、vitreous 贴 lens（插值语义与 bake 一致）、管道确定性 |
+| **CI / npm test** | ✅ ci.yml 测试步骤扩为 `node --test tests/rendered-html.test.mjs tests/bake-geometry.test.mjs`；npm test 同样纳入 |
+| **文档同步** | ✅ HANDOFF §4.1 第 1 条更新为现行 `attachRingToScleraInner` 方案（原 remap 描述已过时）；REPORT 当前状态更新，剩余项清零 |
+| 验证 | ✅ tsc 0 / lint 0 errors / SSR 2/2 / bake 单测 10/10（build+e2e 见下轮基线） |
+| **推送远端** | ✅ 已推送，main 与远端完全同步 |

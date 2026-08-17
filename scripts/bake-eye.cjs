@@ -5,7 +5,13 @@
 // survives GLTF round-trips via node extras.
 //
 // Usage: node scripts/bake-eye.js [input.glb] [output.glb]
-//   defaults: public/models/eye-anatomy.glb -> public/models/eye-anatomy-baked.glb
+//   defaults: source/eye-anatomy.glb -> .bake/eye-anatomy-baked.glb
+//   then: npx @gltf-transform/cli draco .bake/eye-anatomy-baked.glb public/models/eye-anatomy.glb
+//
+// The file is also a module: require() it to reuse the pipeline (runBake)
+// and the phase functions — tests/bake-geometry.test.mjs asserts the baked
+// geometry invariants (bboxes, SC/TM ring positions, UVs, subdivision)
+// against the committed source GLB.
 
 const fs = require("fs");
 const path = require("path");
@@ -26,7 +32,6 @@ if (typeof globalThis.FileReader === "undefined") {
 const THREE = require("three");
 const { GLTFLoader } = require("three/examples/jsm/loaders/GLTFLoader.js");
 const { GLTFExporter } = require("three/examples/jsm/exporters/GLTFExporter.js");
-const { mergeGeometries } = require("three/examples/jsm/utils/BufferGeometryUtils.js");
 
 const ROOT = path.resolve(__dirname, "..");
 const INPUT = process.argv[2] || "source/eye-anatomy.glb";
@@ -127,32 +132,6 @@ function loadGlb(file) {
     new GLTFLoader().parse(buffer, "", (g) => resolve(g), (e) => reject(e));
   });
 }
-
-/** Radially repositions a ring mesh around the Z axis: x,y multiplied by `s`,
- *  z shifted by `dz`. Corrects TM/SC into the scleral sulcus against the
- *  limbus (maxXY 1.00, z 1.23-1.43). */
-function mulberry32(seed) {
-  let s = seed;
-  return () => {
-    s |= 0;
-    s = (s + 0x6d2b79f5) | 0;
-    let t = Math.imul(s ^ (s >>> 15), 1 | s);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-
-
-
-
-
-
-
-
-
-
-
 
 /** Phase 2: stretch a ciliary ring along the eye axis (anterior end anchored)
  *  and remap each vertex's radius so the ring keeps hugging the sclera's inner
@@ -446,6 +425,11 @@ function thinSclera(scleraMesh, thicknessFn) {
 
 
 
+/** Unit scale: the bake model works in "units" where the sclera shell
+ *  thickness constant 0.176u = 1.17mm (see thinSclera/thicknessFn), so
+ *  1 unit = 6.6477 mm. */
+const MM_PER_UNIT = 1.17 / 0.176; // 6.6477
+
 /** Phase 3b: scale the cornea's XY extent so its diameter matches the
  *  anatomical value (~11.5 mm, down from the HRA 13.5 mm). Z is untouched.
  *  Call BEFORE reprofileCornea so the posterior rebuild uses the new edge
@@ -453,7 +437,6 @@ function thinSclera(scleraMesh, thicknessFn) {
  *  cornea's new edge (5.75 mm). */
 function scaleCorneaDiameter(corneaMesh, targetDiameterMm) {
   if (!corneaMesh) return;
-  const MM_PER_UNIT = 1.17 / 0.176; // 6.6477
   const pos = corneaMesh.geometry.getAttribute("position");
   let rmax = 0;
   for (let i = 0; i < pos.count; i += 1) {
@@ -914,10 +897,9 @@ function attachVitreousToLens(vitreousMesh, lensMesh) {
   pos.needsUpdate = true;
 }
 
-(async () => {
+async function runBake(gltf) {
   const LoopSubdivision = (await import("three-subdivide")).LoopSubdivision;
   const t0 = Date.now();
-  const gltf = await loadGlb(path.join(ROOT, INPUT));
   const meshes = [];
   gltf.scene.traverse((o) => { if (o.isMesh) meshes.push(o); });
   console.log(`loaded ${meshes.length} meshes (${Date.now() - t0}ms)`);
@@ -1029,12 +1011,40 @@ function attachVitreousToLens(vitreousMesh, lensMesh) {
   // Collector channels are NOT baked: gltf-transform's draco pass drops Line
   // primitives, so the viewer generates them at runtime (viewer.ts).
 
-  const exported = await new Promise((res, rej) =>
+  return { meshes, totalSub };
+}
+
+/** Exports the baked scene to a binary GLB buffer (GLTFExporter). */
+async function exportBaked(gltf) {
+  return new Promise((res, rej) =>
     new GLTFExporter().parse(gltf.scene, res, rej, { binary: true, onlyVisible: false }),
   );
+}
+
+async function main() {
+  const gltf = await loadGlb(path.join(ROOT, INPUT));
+  await runBake(gltf);
+  const exported = await exportBaked(gltf);
   const out = path.join(ROOT, OUTPUT);
   fs.mkdirSync(path.dirname(out), { recursive: true });
   fs.writeFileSync(out, Buffer.from(exported));
   const mb = (fs.statSync(out).size / 1048576).toFixed(2);
   console.log(`written ${OUTPUT} (${mb} MB)`);
-})().catch((e) => { console.error("BAKE_FAIL:", e.message); process.exit(1); });
+}
+
+// CLI entry (node scripts/bake-eye.cjs [input.glb] [output.glb]); when required
+// as a module (tests/bake-geometry.test.mjs) only the exports are used.
+if (require.main === module) {
+  main().catch((e) => { console.error("BAKE_FAIL:", e.message); process.exit(1); });
+}
+
+module.exports = {
+  ROOT, INPUT, OUTPUT, MM_PER_UNIT,
+  PART_FROM_MESH, UV_KIND,
+  loadGlb, runBake, exportBaked, generatePartUVs,
+  stretchRingAlongZ, retractAnteriorZ, reprofileCiliary, reprofileMuscle,
+  reprofileCornea, thinSclera, scaleCorneaDiameter, buildFullOuterProfile,
+  buildFullInnerProfile, attachShellToInner, flushAqueousToCornea,
+  attachLimbusToSclera, trimPosteriorTube, attachRingToScleraInner,
+  attachIrisRootToCiliary, attachVitreousToLens,
+};
