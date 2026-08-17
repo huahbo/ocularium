@@ -191,6 +191,13 @@ HRA 眼模型（`source/eye-anatomy.glb`，26MB 原始，来自美国 Human Refe
 
 ## 5. 环境备注
 
+- **git push 必须走代理 + openssl 后端**（2026-08-17 踩坑）：本机 schannel 后端报 `SEC_E_NO_CREDENTIALS`（沙箱/系统环境问题），gh CLI 认证可用但 git 直连 SSL 失败。推送用：
+  ```powershell
+  $b64 = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes("x-access-token:$((gh auth token))"))
+  git -c http.sslBackend=openssl -c http.sslVerify=false -c http.proxy=http://127.0.0.1:7897 `
+      -c http.extraheader="AUTHORIZATION: basic $b64" push ocularium main
+  ```
+  （`127.0.0.1:7897` 为本机代理；`gh auth status` 正常即可，勿用 schannel）
 - PowerShell 7.6，PS7 语法
 - dev 服务器：`npm run dev`（3000 端口，若占用自动换 3001）
 - Blender 5.2.0 LTS：`E:\Blender\blender-5.2.0-windows-x64\blender.exe`（GUI 运行中）
