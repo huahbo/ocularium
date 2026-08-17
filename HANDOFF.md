@@ -210,7 +210,7 @@ HRA 眼模型（`source/eye-anatomy.glb`，26MB 原始，来自美国 Human Refe
       -c http.extraheader="AUTHORIZATION: basic $b64" push ocularium main
   ```
   （`127.0.0.1:7897` 为本机代理；`gh auth status` 正常即可，勿用 schannel）
-- PowerShell 7.6，PS7 语法
+- **⚠️ 用户偏好（必须遵守）**：PowerShell 7.6，**所有命令一律用 PS7 语法**（`$env:` / cmdlet / 管道 / `Get-Content` 等原生写法），不用 CMD 语法；涉及 spawn/子进程时注意沙箱 EPERM 限制（见 §4.7）
 - dev 服务器：`npm run dev`（3000 端口，若占用自动换 3001）
 - Blender 5.2.0 LTS：`E:\Blender\blender-5.2.0-windows-x64\blender.exe`（GUI 运行中）
 - 后端临时目录：`C:\Users\ADMINI~1\AppData\Local\Temp\opencode`
