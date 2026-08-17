@@ -172,6 +172,13 @@ HRA 眼模型（`source/eye-anatomy.glb`，26MB 原始，来自美国 Human Refe
   ⚠️ 该 API 频繁超时（限流），超时则用本地像素分析（PIL）兜底
 - **Blender MCP（2026-08-16 重装为官方版）**：Blender Lab 官方扩展 v1.0.0（blender.org/lab/mcp-server）装于 extensions\user_default\mcp，Blender 内 socket bridge 监听 9876（Auto Start，需系统偏好 Online Access=use_online_access 开启）；外部 server 为官方 blmcp 包（venv: C:\blender-mcp-server\venv，python -m blmcp，默认 stdio，可 --transport http）。DSH 已通过 dsh-mcp-client stdio 接入（工具名 mcp__blender__*）。旧版 ahujasid addon 已删除。⚠️ 官方依赖 mcp>=1.2,<2（2.x 移除了 mcp.server.fastmcp）；mcpb 包是 server 端，扩展本体是 release 里的 zip
 
+## 4.6 MCP 工具（DSH 桥接，2026-08-16）
+
+- **Playwright MCP**（mcp__playwright__*）：cordis.patch.yml（stdio，headless），chromium 已装；新会话可直接驱动 3D 页面（等价替代 scripts/e2e-regression.mjs）
+- **Context7**（mcp__context7__*）：库文档查询（next/three 升级用）
+- **Blender MCP**（mcp__blender__*）：官方扩展 v1.0.0（见 §1 环境备注）；Blender 未开时不可用，重开即恢复
+- GitHub：无 MCP，用已认证的 gh CLI
+
 ## 4.5 已知坑：vinext start 静态资源 404（Windows）
 
 - **症状**：`npm run start` 后页面 HTML 正常（SSR），但 `/assets/*.js`、`/models/*` 全部 404；根文件（favicon 等）正常
