@@ -16,6 +16,8 @@ const eslintConfig = defineConfig([
     "public/**",
     // Plain-CJS build-time pipeline script (require() is intentional there).
     "scripts/**",
+    // Intermediate bake output + throwaway diagnostic scripts (gitignored).
+    ".bake/**",
   ]),
 ]);
 

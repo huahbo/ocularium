@@ -189,6 +189,18 @@ HRA 眼模型（`source/eye-anatomy.glb`，26MB 原始，来自美国 Human Refe
 - **回归脚本**：`npm run e2e`（scripts/e2e-regression.mjs）——**23 项断言**：24 层/三模式切换（Layered/Anatomy/Outflow）/剥离/quiz（含空点击不记错）/tour/搜索过滤/层高亮/透明度滑杆/X-Ray/无 JS 错误；需要 `npm run start` + chromium 1234（`npx playwright-core@1.62.1 install chromium`）。⚠️ 跑前确保无残留 chrome-headless-shell 进程（僵尸进程会拖慢截图 10 倍）
 - **Playwright 注意**：headless 下 WebGL readPixels 极慢（每截图 ~12s），timeout 要给足；locator.click 对 gsap data-reveal 元素误判不可见 → 脚本用物理坐标点击
 
+## 4.7 DSH 会话踩坑速查（2026-08-17 第七轮沉淀）
+
+- **`node --test` 在本会话 spawn EPERM**（沙箱禁止子进程 piped stdio）：报 `spawn EPERM` 不是代码问题。**直接 `node tests/xxx.test.mjs` 运行**（node:test 单文件模式，无需 runner 子进程）；CI（ubuntu）与用户本机无此限制，`node --test` 照常。
+- **`npm run build` 同样 spawn EPERM**（vite/rolldown 解析包时起子进程）：沙箱内需 `sandbox_permissions: danger-full-access` 升级后重跑，或直接信任 CI。
+- **临时诊断脚本放 `.bake/` 会被 eslint 扫到**（`eslint .` 扫全目录，`.bake` 此前不在 ignore）：已把 `.bake/**` 加入 `eslint.config.mjs` 忽略；新会话写一次性 probe/diag 脚本仍建议放 `.bake/`（gitignored + lint-ignored 双保险）。
+- **edit 工具 old_string 匹配多空行**：空行数按实际行数算——`}` 行结束符 + N 个空行 = `}` 后跟 N+1 个 `\n`；含反引号（markdown 代码片段）的文本用字符串拼接而非模板字面量（反引号会截断模板）。
+- **单测断言语义必须对齐 bake 实现**（第七轮 3 个断言假失败教训）：
+  - 巩膜厚度 profile 在 limbus/后极开口区会 blend 失真 → 赤道带（z∈[-1,0.5]）严格断言 ±0.025，全范围只做宽松上界（<0.25u）；
+  - SC/TM 在 limbus 区（sclera 外表面随 z 急剧收缩）→ 每顶点对比**自身 z 处**的 `sclOutFull(z)`，不能用固定 z 常数；
+  - vitreous 贴 lens 断言必须用与 `attachVitreousToLens` 相同的 32-bin **插值** `backAt`（离散 bin 值会有插值差伪影，真实 overshoot 为负）；
+  - 通用流程：先 probe 实测数值 → 再定容差（.bake 里的 probe.cjs 就是干这个的，用完删）。
+
 ## 5. 环境备注
 
 - **git push 必须走代理 + openssl 后端**（2026-08-17 踩坑）：本机 schannel 后端报 `SEC_E_NO_CREDENTIALS`（沙箱/系统环境问题），gh CLI 认证可用但 git 直连 SSL 失败。推送用：
