@@ -48,6 +48,7 @@ next-env.d.ts
 # local tooling artifacts
 /.omo/
 /.codegraph/
+/.dsh-vision-toolkit/
 
 /source/*
 !/source/eye-anatomy.glb

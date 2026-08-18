@@ -150,3 +150,28 @@
 | **文档同步** | ✅ HANDOFF §4.1 第 1 条更新为现行 `attachRingToScleraInner` 方案（原 remap 描述已过时）；REPORT 当前状态更新，剩余项清零 |
 | 验证 | ✅ tsc 0 / lint 0 errors / SSR 2/2 / bake 单测 10/10（build+e2e 见下轮基线） |
 | **推送远端** | ✅ 已推送，main 与远端完全同步 |
+## 第八轮执行（2026-08-18，工具链升级：vinext 0.0.50 → 1.0.0-beta.6）
+
+**动因**：advise-project-approach 评审指出 vinext 锁定旧线（0.0.50，落后自家 beta 线两个月），且带着私有 postinstall 补丁。
+
+**变更**（已全量验证）：
+- vinext `0.0.50` → `1.0.0-beta.6`（devDependencies）
+- @cloudflare/vite-plugin `1.37.1` → `1.52.1`
+- @vitejs/plugin-rsc `0.5.26` → `0.5.34`（beta.6 的 peer 要求）
+- **删除 postinstall 补丁**（scripts/patch-vinext-static-cache.cjs）：beta.6 已内置 Windows 路径修复（static-file-cache.js `relativePath.replaceAll(path.sep, "/")`），补丁实测为 no-op
+
+**验证（2026-08-18 实测）**：
+
+| 检查 | 结果 |
+|---|---|
+| npm install | ✅ 生产依赖 audit **0 漏洞**（13 high 全在 dev 树，workerd/esbuild 平台包不受 allow-scripts 影响） |
+| npm run build | ✅ client 1917 + SSR 149 modules，约 8s |
+| npm test（SSR+bake） | ✅ **12/12** |
+| e2e（vinext start + headless WebGL） | ✅ **23/23**，静态资源服务正常（上游修复生效） |
+| 生产站点 | 待用户重新部署后验证（本地全链路已绿） |
+
+**踩坑记录**（供后续参考）：
+1. 改版本先确认字段位置（vinext 原在 devDependencies，误加到 dependencies 导致双声明、npm 按 lock 装旧版）——装完必须 `npm ls` 验证真实版本
+2. ERESOLVE：按 peer 要求同步升级 plugin-rsc
+3. e2e 约 10.5 分钟（headless WebGL 慢），长任务必须脱离进程跑（Start-Process + 日志轮询），后台 job 会被超时误杀
+
