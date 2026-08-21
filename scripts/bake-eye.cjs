@@ -191,6 +191,58 @@ function retractAnteriorZ(mesh, zBreak, zNewMax, scleraInner) {
 
 
 
+/** Align a ring posterior edge to a target z plane, per angle. The HRA
+ *  ciliary body is a tilted ring (posterior edge z 0.375 nasal to 0.57
+ *  temporal), leaving a ~1mm annular gap to the choroid anterior edge
+ *  (z=0.42) on the temporal side. Physiology: pars plana posterior edge
+ *  = ora serrata = choroid anterior edge, one continuous ring.
+ *  Per-angle z remap (posterior to zTarget, anterior unchanged) with the
+ *  radius re-attached to the sclera inner surface. Outer-rim vertices
+ *  (r > 1.0) define the per-angle posterior/anterior extremes. */
+function alignRingPosterior(mesh, zTarget, scleraInner) {
+  if (!mesh) return;
+  const pos = mesh.geometry.getAttribute('position');
+  const BINS = 64;
+  const zMin = new Array(BINS).fill(1e9);
+  const zMax = new Array(BINS).fill(-1e9);
+  const binOf = (x, y) => {
+    let a = Math.atan2(y, x);
+    if (a < 0) a += Math.PI * 2;
+    return Math.min(BINS - 1, Math.floor((a / (Math.PI * 2)) * BINS));
+  };
+  for (let i = 0; i < pos.count; i += 1) {
+    const x = pos.getX(i);
+    const y = pos.getY(i);
+    const r = Math.hypot(x, y);
+    if (r < 1.0) continue; // outer rim only defines the edge
+    const b = binOf(x, y);
+    const z = pos.getZ(i);
+    if (z < zMin[b]) zMin[b] = z;
+    if (z > zMax[b]) zMax[b] = z;
+  }
+  for (let i = 0; i < pos.count; i += 1) {
+    const x = pos.getX(i);
+    const y = pos.getY(i);
+    const z = pos.getZ(i);
+    const r = Math.hypot(x, y);
+    if (r < 0.05) continue;
+    const b = binOf(x, y);
+    const zmin = zMin[b];
+    const zmax = zMax[b];
+    if (zmax <= zTarget + 1e-6) continue;
+    const f = Math.max(0, (z - zmin) / Math.max(1e-4, zmax - zmin));
+    const zNew = zTarget + f * (zmax - zTarget);
+    const rsCur = scleraInner(z);
+    const rsNew = scleraInner(zNew);
+    const scale = rsCur > 1e-4 ? rsNew / rsCur : 1;
+    const c = r > 1e-6 ? Math.min(r * scale, rsNew) / r : 0;
+    pos.setX(i, x * c);
+    pos.setY(i, y * c);
+    pos.setZ(i, zNew);
+  }
+  pos.needsUpdate = true;
+}
+
 /** Phase 4: re-profile a ciliary ring's cross-section. Keeps the outer edge on
  *  the sclera inner surface and remaps the inner edge so the radial band equals
  *  `thicknessFn(z)` (triangle: thick anterior -> 0 posterior).
@@ -726,41 +778,45 @@ function attachLimbusToSclera(limbusMesh, sclOutFull, corneaMesh) {
   pos.needsUpdate = true;
 }
 
-/** Phase 7b: trim the posterior "tube" that HRA gives choroid/retina at the
- *  optic-nerve foramen. The raw mesh extends BACK through the sclera's hole
- *  to z≈−11.6 AND pokes out of the eyeball (choroid r 7.81mm at z=−10.9 vs
- *  sclera outer 6.68mm). Vertices behind `zClip` are flattened onto the
- *  zClip plane with r clamped inside the sclera outer surface, leaving a
- *  smooth lip around the foramen (the hole itself stays open — the optic
- *  disc covers it). */
-function trimPosteriorTube(mesh, sclOutFull, zClip) {
+/** Phase 7b: close the posterior of choroid/retina onto the sclera INNER
+ *  surface (surface projection, not a flat cut). The raw HRA mesh has a tube
+ *  poking back through the optic-nerve region (z about -11.6); the old
+ *  version flattened everything behind zClip onto one plane, which reads as
+ *  a sliced-off flat cap. Now each vertex keeps its angle and slides along
+ *  the sclera inner surface (binary search on the per-z inner radius), so
+ *  the posterior becomes a smooth bowl matching the sclera closed cap. */
+function trimPosteriorTube(mesh, scleraInner, zClip) {
   if (!mesh) return;
-  const pos = mesh.geometry.getAttribute("position");
+  const pos = mesh.geometry.getAttribute('position');
+  const zLo = -2.0; // inner-profile lower bound
   for (let i = 0; i < pos.count; i += 1) {
     const z = pos.getZ(i);
     if (z >= zClip) continue;
     const x = pos.getX(i);
     const y = pos.getY(i);
     const r = Math.hypot(x, y);
-    if (r < 0.3) { pos.setZ(i, zClip); continue; } // tube tip: flatten, keep r
-    const rMax = sclOutFull(zClip) - 0.05; // stay inside the sclera outer lip
-    const rNew = Math.min(r, rMax);
-    const c = r > 1e-6 ? rNew / r : 0;
+    const rClip = scleraInner(zClip);
+    let zNew = zClip;
+    if (r > rClip) {
+      // slide toward -Z until the inner surface radius matches this vertex
+      let lo = zLo;
+      let hi = zClip;
+      for (let it = 0; it < 24; it += 1) {
+        const mid = (lo + hi) / 2;
+        if (scleraInner(mid) >= r) hi = mid;
+        else lo = mid;
+      }
+      zNew = (lo + hi) / 2;
+    }
+    const rs = scleraInner(zNew);
+    const c = rs > 1e-4 ? rs / r : 1;
     pos.setX(i, x * c);
     pos.setY(i, y * c);
-    pos.setZ(i, zClip);
+    pos.setZ(i, zNew);
   }
   pos.needsUpdate = true;
 }
 
-/** Phase 5: attach a ring (SC/TM) to the sclera INNER surface by translating
- *  each vertex along z (keeping its relative z position inside the ring) and
- *  placing its radius at `sclInFull(z) + offset + (r − rMed)`, where rMed is
- *  the ring's current median radius. Preserves the ring's full (non-circular,
- *  elliptical) shape — each vertex keeps its radial offset from the median,
- *  only the median is re-anchored. SC sits INSIDE the sclera shell (offset
- *  +0.05u ≈ 0.33mm into the sclera, per anatomy), TM on the anterior-chamber
- *  side (offset −0.03u). */
 function attachRingToScleraInner(mesh, sclInFull, offset, zMinNew, zMaxNew) {
   if (!mesh) return;
   const pos = mesh.geometry.getAttribute("position");
@@ -960,6 +1016,8 @@ async function runBake(gltf) {
   };
   reprofileCiliary(cbMesh, tBody, sclInFull);
   reprofileMuscle(muscleMesh, sclInFull);
+  // P6.5: 睫状体后缘对齐到脉络膜前缘(0.42) - 消除颞侧 ~1mm 环形缺口
+  alignRingPosterior(cbMesh, 0.42, sclInFull);
   const irisMesh = meshes.find((m) => m.name === "VH_M_iris_L");
   attachIrisRootToCiliary(irisMesh, cbMesh);
   console.log("P6: ciliary body/muscle stretched + re-profiled; processes kept original; iris root attached");
@@ -969,8 +1027,8 @@ async function runBake(gltf) {
   const retinaMesh = meshes.find((m) => m.name === "VH_M_retina_L");
   retractAnteriorZ(choroidMesh, 0.375, 0.42, sclInFull); // HRA 前缘伸到 z 1.11u, 必须收回
   retractAnteriorZ(retinaMesh, 0.375, 0.42, sclInFull);
-  trimPosteriorTube(choroidMesh, sclOutFull, -1.70); // 后极视神经孔管: 压平到孔口平面 (z=-11.3mm)
-  trimPosteriorTube(retinaMesh, sclOutFull, -1.70);
+  trimPosteriorTube(choroidMesh, sclInFull, -1.84); // 后极曲面贴 sclera 内表面(旧版压平像被削平)
+  trimPosteriorTube(retinaMesh, sclInFull, -1.84);
   attachShellToInner(choroidMesh, sclInFull, 0.0451); // 0.3mm
   attachShellToInner(retinaMesh, (z) => sclInFull(z) - 0.0451, 0.0301); // 0.2mm, 贴 choroid 内
   console.log("P7: choroid/retina anterior retracted to ora serrata + attached (0.3/0.2mm)");
