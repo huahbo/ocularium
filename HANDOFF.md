@@ -212,6 +212,14 @@ HRA 眼模型（`source/eye-anatomy.glb`，26MB 原始，来自美国 Human Refe
 - **B 睫状体收尖**：tBody 后段线性改幂函数 ^1.6（pars plana 0.33→0.21mm），三角形经线截面更明显
 - **C 角膜边缘外扩**（expandCorneaEdge）：角膜边缘区(z 1.20-1.36, r>0.5)外扩贴 limbus 内缘 r=0.865（z≤1.26 全贴，1.26-1.36 线性过渡），环形缝隙 0.3-0.5mm → ≤0.1mm；须在 flushAqueousToCornea 之前调用
 - 验证：几何复测全绿（见 REPORT）；e2e 待完整重跑（用户 Chrome 长期占用资源，headless 截图慢）
+## 4.9 后极结构归位 + 前节斜接重塑（2026-08-21，已实施推送）
+
+- **A 后极三结构**：optic disc 从颞侧平移至鼻侧(+1.014, +0.119, -0.125, 贴内表面 z-1.79)；fovea/macula 下移贴延伸后中心帽(z -1.89/-1.87)。disc-黄斑 3.57mm(真实 3.42)；三结构表面凹陷(视盘凹 0.33mm/中心凹 0.24mm)为解剖正确
+- **B1 巩膜前部外扩**(widenAnteriorSclera, P-0.5 于 thinSclera 前)：z1.00-1.32 外表面贴球面参考 sqrt(1.8^2-z^2)，z1.25-1.32 回落保孔缘；内外同步保壳厚
+- **B2 角膜缘球面化**：expandCorneaEdge 目标 0.865→0.93(缘处球面值)
+- **B3 limbus 自动斜接**：attachLimbusToSclera 重跑自动贴新表面(无需新代码)
+- **B4 SC/TM 自动重锚**：锚定 sclInFull+offset，随内表面自动跟随；实测 SC 嵌巩膜 0.3mm、TM 贴前房角内表面 ✓
+- 教训：新增函数调用前必须确认目标 mesh 变量已声明(P-0.5 用了 P0 的 scleraMesh → 提前声明)
 ## 5. 环境备注
 
 - **git push 必须走代理 + openssl 后端**（2026-08-17 踩坑）：本机 schannel 后端报 `SEC_E_NO_CREDENTIALS`（沙箱/系统环境问题），gh CLI 认证可用但 git 直连 SSL 失败。推送用：
