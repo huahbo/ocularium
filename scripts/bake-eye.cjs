@@ -1062,7 +1062,7 @@ async function runBake(gltf) {
   stretchRingAlongZ(procMesh, 0.953, 1.157, 0.925, 1.225, sclInFull); // 保留原始 76608 顶点
   const tBody = (z) => {
     if (z >= 0.908) return 0.12 + (0.07 * (z - 0.908)) / 0.3;
-    if (z >= 0.375) return (0.12 * (z - 0.375)) / 0.533;
+    if (z >= 0.375) return 0.12 * Math.pow((z - 0.375) / 0.533, 1.6); // 后段幂收尖: z=0.42 处 0.067->0.018mm
     return 0;
   };
   reprofileCiliary(cbMesh, tBody, sclInFull);
