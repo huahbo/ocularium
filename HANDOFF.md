@@ -206,6 +206,12 @@ HRA 眼模型（`source/eye-anatomy.glb`，26MB 原始，来自美国 Human Refe
 - **Choroid 后极削平**：旧 trimPosteriorTube 把 z<-1.70 顶点压成平面（视觉像被砍平）。修复：曲面投影——每顶点沿 sclera 内表面二分滑移（zClip=-1.84），后极成为平滑碗状（平面顶点 3.2% → 0%）。注意 sclInFull 忽略 r<0.3 中心区，后极中心与 sclera 内表面仍有 ~0.8mm 间隙（仅剖开可见，未处理）
 - **睫状体-脉络膜缺口**：HRA 原始睫状体是倾斜环（后缘 z 鼻侧 0.375 / 颞侧 0.57），与 choroid 前缘（0.42）在颞侧形成 ~1mm 环形缺口。修复：新增 alignRingPosterior（per-angle z remap：后缘→0.42，前缘不变，半径贴 sclera 内表面），缺口 1.0mm → 0~0.05mm
 - 复烘焙 + draco 压缩后已推送（b07565f）；浏览器强刷（Ctrl+Shift+R）即可看到效果
+## 4.8 三合一几何修复（2026-08-17，已实施并推送 d4ab3ae）
+
+- **A 后极延伸**（extendPosteriorToInner）：choroid/retina/vitreous 后极中心区(r<0.55)沿 sclera 内表面小帽曲线加深（zmin -1.74/-1.71/-1.67 → -1.89 附近），消除 slice 平墙。注意：sclInFull 在 z<-1.7 非单调（中心帽 r<0.3 被 profile 跳过），二分不可靠，用小帽锚点曲线 capZ；vitreous 用 linearEdge 模式（zEdge 取 r 0.50-0.60 环的 min z，勿用均值——球体前后顶点会抵消）
+- **B 睫状体收尖**：tBody 后段线性改幂函数 ^1.6（pars plana 0.33→0.21mm），三角形经线截面更明显
+- **C 角膜边缘外扩**（expandCorneaEdge）：角膜边缘区(z 1.20-1.36, r>0.5)外扩贴 limbus 内缘 r=0.865（z≤1.26 全贴，1.26-1.36 线性过渡），环形缝隙 0.3-0.5mm → ≤0.1mm；须在 flushAqueousToCornea 之前调用
+- 验证：几何复测全绿（见 REPORT）；e2e 待完整重跑（用户 Chrome 长期占用资源，headless 截图慢）
 ## 5. 环境备注
 
 - **git push 必须走代理 + openssl 后端**（2026-08-17 踩坑）：本机 schannel 后端报 `SEC_E_NO_CREDENTIALS`（沙箱/系统环境问题），gh CLI 认证可用但 git 直连 SSL 失败。推送用：
