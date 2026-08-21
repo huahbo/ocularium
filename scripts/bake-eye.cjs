@@ -243,6 +243,57 @@ function alignRingPosterior(mesh, zTarget, scleraInner) {
   pos.needsUpdate = true;
 }
 
+/** Extend the posterior center cap (r<0.55) of choroid/retina/vitreous onto
+ *  the sclera inner-surface cap curve. The raw HRA shells end at z=-1.74/-1.71/-1.67,
+ *  floating 0.7-1.0mm short of the sclera posterior cap (z=-1.84..-1.90), which
+ *  reads as a flat wall in slice views. The sclera inner profile is non-monotonic
+ *  behind z=-1.7 (cap vertices r<0.3 are skipped), so a fixed cap curve is used
+ *  instead of binary search: capZ(r) anchors measured from the sclera inner cap. */
+function extendPosteriorToInner(mesh, zStart, opts) {
+  if (!mesh) return;
+  const pos = mesh.geometry.getAttribute('position');
+  const CAP = [
+    [0.0, -1.900], [0.013, -1.900], [0.111, -1.880], [0.255, -1.860],
+    [0.363, -1.840], [0.46, -1.790], [0.55, -1.710],
+  ];
+  // linear-edge mode: smooth bowl from z=-1.90 (r=0) to the measured
+  // boundary z at r~0.55 (keeps continuity with the untouched outer ring).
+  let zEdge = null;
+  if (opts && opts.linearEdge) {
+    // min z over the r 0.50-0.60 ring = the posterior boundary (mean would
+    // mix front+back vertices of a sphere and give a wrong mid-eye target).
+    let zmin = 1e9;
+    for (let i = 0; i < pos.count; i += 1) {
+      const rr = Math.hypot(pos.getX(i), pos.getY(i));
+      if (rr >= 0.50 && rr <= 0.60) zmin = Math.min(zmin, pos.getZ(i));
+    }
+    zEdge = zmin < 1e8 ? zmin : -1.71;
+  }
+  const capZ = (r) => {
+    if (zEdge !== null) return -1.90 + (zEdge + 1.90) * (r / 0.55);
+
+    for (let i = 1; i < CAP.length; i += 1) {
+      if (r <= CAP[i][0]) {
+        const r0 = CAP[i - 1][0], z0 = CAP[i - 1][1];
+        const r1 = CAP[i][0], z1 = CAP[i][1];
+        const t = (r - r0) / (r1 - r0);
+        return z0 + t * (z1 - z0);
+      }
+    }
+    return CAP[CAP.length - 1][1];
+  };
+  for (let i = 0; i < pos.count; i += 1) {
+    const x = pos.getX(i);
+    const y = pos.getY(i);
+    const z = pos.getZ(i);
+    const r = Math.hypot(x, y);
+    if (r >= 0.55) continue;
+    if (z > zStart) continue;
+    pos.setZ(i, capZ(r));
+  }
+  pos.needsUpdate = true;
+}
+
 /** Phase 4: re-profile a ciliary ring's cross-section. Keeps the outer edge on
  *  the sclera inner surface and remaps the inner edge so the radial band equals
  *  `thicknessFn(z)` (triangle: thick anterior -> 0 posterior).
@@ -1025,16 +1076,20 @@ async function runBake(gltf) {
   // ---- P7: choroid/retina 前缘回缩到 ora serrata(z~0.4), 再薄化贴变薄后 sclera 内表面 ----
   const choroidMesh = meshes.find((m) => m.name === "VH_M_optic_choroid_L");
   const retinaMesh = meshes.find((m) => m.name === "VH_M_retina_L");
+  const vitreousMesh = meshes.find((m) => m.name === "VH_M_vitreous_humor_L");
   retractAnteriorZ(choroidMesh, 0.375, 0.42, sclInFull); // HRA 前缘伸到 z 1.11u, 必须收回
   retractAnteriorZ(retinaMesh, 0.375, 0.42, sclInFull);
   trimPosteriorTube(choroidMesh, sclInFull, -1.84); // 后极曲面贴 sclera 内表面(旧版压平像被削平)
   trimPosteriorTube(retinaMesh, sclInFull, -1.84);
   attachShellToInner(choroidMesh, sclInFull, 0.0451); // 0.3mm
   attachShellToInner(retinaMesh, (z) => sclInFull(z) - 0.0451, 0.0301); // 0.2mm, 贴 choroid 内
+  // P7.5: 后极中心区沿 sclera 内表面小帽延伸(消除 slice 平墙)
+  extendPosteriorToInner(choroidMesh, -1.60);
+  extendPosteriorToInner(retinaMesh, -1.60);
+  extendPosteriorToInner(vitreousMesh, -1.40, { linearEdge: true });
   console.log("P7: choroid/retina anterior retracted to ora serrata + attached (0.3/0.2mm)");
 
   // ---- P8: vitreous 前表面贴 lens 后表面(fossa patellaris) ----
-  const vitreousMesh = meshes.find((m) => m.name === "VH_M_vitreous_humor_L");
   const lensMesh = meshes.find((m) => m.name === "VH_M_lens_L");
   attachVitreousToLens(vitreousMesh, lensMesh);
   console.log("P8: vitreous front pushed onto lens posterior");
