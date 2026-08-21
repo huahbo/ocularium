@@ -350,6 +350,53 @@ function translateMesh(mesh, dx, dy, dz) {
   pos.needsUpdate = true;
 }
 
+/** Widen the anterior sclera outer surface onto the spherical reference so the
+ *  cornea-limbus-sclera outer contour becomes one continuous bevel (AS-OCT
+ *  morphology) instead of a stepped cylinder-cone. z 1.00-1.32 ramps up to the
+ *  reference sphere r=sqrt(1.8^2 - z^2) (max +0.16u at z~1.25); z 1.25-1.32
+ *  ramps back to 0 so the anterior opening rim (z>1.32, where the cornea
+ *  sits) is untouched. Inner+outer surfaces shift together (shell thickness
+ *  preserved). Must run BEFORE thinSclera/P0 profile so all downstream
+ *  attachments (sclInFull, SC/TM, ciliary) follow automatically. */
+function widenAnteriorSclera(scleraMesh) {
+  if (!scleraMesh) return;
+  const pos = scleraMesh.geometry.getAttribute('position');
+  const Z0 = 1.00, Z1 = 1.32, BINS = 40;
+  const tgt = (z) => Math.sqrt(Math.max(0, 1.8 * 1.8 - z * z));
+  const rOut = new Array(BINS).fill(0);
+  for (let i = 0; i < pos.count; i += 1) {
+    const z = pos.getZ(i);
+    if (z < Z0 || z > Z1) continue;
+    const r = Math.hypot(pos.getX(i), pos.getY(i));
+    const b = Math.min(BINS - 1, Math.floor(((z - Z0) / (Z1 - Z0)) * BINS));
+    if (r > rOut[b]) rOut[b] = r;
+  }
+  const outAt = (z) => {
+    const f = Math.min(1, Math.max(0, (z - Z0) / (Z1 - Z0)));
+    const b = Math.min(BINS - 1, Math.floor(f * BINS));
+    return rOut[b] || 0.8;
+  };
+  for (let i = 0; i < pos.count; i += 1) {
+    const x = pos.getX(i);
+    const y = pos.getY(i);
+    const z = pos.getZ(i);
+    if (z < Z0 || z > Z1) continue;
+    const r = Math.hypot(x, y);
+    if (r < 0.3) continue;
+    // ramp: 0 at z=1.00 -> 1 at z=1.25 -> 0 at z=1.32
+    let w;
+    if (z <= 1.25) w = Math.min(1, (z - Z0) / 0.25);
+    else w = Math.max(0, 1 - (z - 1.25) / 0.07);
+    if (w <= 0) continue;
+    const delta = (tgt(z) - outAt(z)) * w;
+    if (delta <= 0) continue;
+    const c = (r + delta) / r;
+    pos.setX(i, x * c);
+    pos.setY(i, y * c);
+  }
+  pos.needsUpdate = true;
+}
+
 /** Phase 4: re-profile a ciliary ring's cross-section. Keeps the outer edge on
  *  the sclera inner surface and remaps the inner edge so the radial band equals
  *  `thicknessFn(z)` (triangle: thick anterior -> 0 posterior).
@@ -1075,8 +1122,12 @@ async function runBake(gltf) {
   //   - 每个结构只在其原始位置做最小坐标变换, 不互相补偿
   // =====================================================================
 
-  // ---- P0: sclera 外表面 profile(外表面永不变薄) ----
   const scleraMesh = meshes.find((m) => m.name === "VH_M_sclera_L");
+
+  // ---- P-0.5: 巩膜前部外表面外扩到球面参考(角膜-缘-巩膜连续斜接) ----
+  widenAnteriorSclera(scleraMesh);
+
+  // ---- P0: sclera 外表面 profile(外表面永不变薄) ----
   const sclOutFull = buildFullOuterProfile(scleraMesh, -2.0, 1.6, 100);
   console.log("P0: sclera outer profile built");
 
