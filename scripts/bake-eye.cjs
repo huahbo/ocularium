@@ -298,7 +298,7 @@ function extendPosteriorToInner(mesh, zStart, opts) {
  *  cornea sits sunken in the scleral opening: its outer edge (r 0.78-0.82 at
  *  z 1.21-1.32) trails the limbus inner radius (r=0.865) by 0.3-0.5mm, an
  *  annular gap visible from the side. Vertices in z 1.20-1.36 with r>0.5 are
- *  moved radially so the outer-edge contour lands on r=0.865 for z<=1.23,
+ *  moved radially so the outer-edge contour lands on r=0.93 for z<=1.23,
  *  tapering to no change at z>=1.35; inner+outer surfaces shift together so
  *  the 1.17mm wedge thickness is preserved. */
 
@@ -329,7 +329,7 @@ function expandCorneaEdge(corneaMesh) {
     if (z < 1.20 || z > 1.36) continue;
     const w = z <= 1.26 ? 1 : Math.max(0, 1 - (z - 1.26) / 0.10);
     if (w <= 0) continue;
-    const delta = (0.865 - outAt(z)) * w;
+    const delta = (0.93 - outAt(z)) * w;
     if (delta <= 0) continue;
     const c = (r + delta) / r;
     pos.setX(i, x * c);
