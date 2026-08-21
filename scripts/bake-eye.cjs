@@ -338,6 +338,18 @@ function expandCorneaEdge(corneaMesh) {
   pos.needsUpdate = true;
 }
 
+/** Translate every vertex of a mesh (used for repositioning posterior markers). */
+function translateMesh(mesh, dx, dy, dz) {
+  if (!mesh) return;
+  const pos = mesh.geometry.getAttribute('position');
+  for (let i = 0; i < pos.count; i += 1) {
+    pos.setX(i, pos.getX(i) + dx);
+    pos.setY(i, pos.getY(i) + dy);
+    pos.setZ(i, pos.getZ(i) + dz);
+  }
+  pos.needsUpdate = true;
+}
+
 /** Phase 4: re-profile a ciliary ring's cross-section. Keeps the outer edge on
  *  the sclera inner surface and remaps the inner edge so the radial band equals
  *  `thicknessFn(z)` (triangle: thick anterior -> 0 posterior).
@@ -1132,6 +1144,13 @@ async function runBake(gltf) {
   extendPosteriorToInner(choroidMesh, -1.60);
   extendPosteriorToInner(retinaMesh, -1.60);
   extendPosteriorToInner(vitreousMesh, -1.40, { linearEdge: true });
+  // P7.6: 后极三结构归位 - disc 移到鼻侧(真实左眼), fovea/macula 下移贴延伸后的内表面
+  const discMesh = meshes.find((m) => m.name === "VH_M_optic_disc_L");
+  const foveaMesh = meshes.find((m) => m.name === "VH_M_fovea_L");
+  const maculaMesh = meshes.find((m) => m.name === "VH_M_macula_lutea_L");
+  translateMesh(discMesh, 1.014, 0.119, -0.125);   // 颞侧 -> 鼻侧 +3.2mm 偏上 0.8mm, 贴内表面
+  translateMesh(foveaMesh, 0.0, 0.0, -0.258);       // 下移贴中心帽内表面(z -1.89)
+  translateMesh(maculaMesh, 0.025, 0.032, -0.260);  // 跟随 fovea, 贴内表面
   console.log("P7: choroid/retina anterior retracted to ora serrata + attached (0.3/0.2mm)");
 
   // ---- P8: vitreous 前表面贴 lens 后表面(fossa patellaris) ----
