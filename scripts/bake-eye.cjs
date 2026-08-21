@@ -253,8 +253,11 @@ function extendPosteriorToInner(mesh, zStart, opts) {
   if (!mesh) return;
   const pos = mesh.geometry.getAttribute('position');
   const CAP = [
-    [0.0, -1.900], [0.013, -1.900], [0.111, -1.880], [0.255, -1.860],
-    [0.363, -1.840], [0.46, -1.790], [0.55, -1.710],
+    // sclera INNER-surface posterior cap (measured): smooth shallow arc from
+    // the center (-1.74) out to the untouched outer ring (-1.71). The old
+    // -1.90 anchors were the OUTER surface and pushed choroid through sclera.
+    [0.0, -1.740], [0.15, -1.735], [0.30, -1.728], [0.45, -1.720],
+    [0.60, -1.714], [0.80, -1.712],
   ];
   // linear-edge mode: smooth bowl from z=-1.90 (r=0) to the measured
   // boundary z at r~0.55 (keeps continuity with the untouched outer ring).
@@ -287,7 +290,7 @@ function extendPosteriorToInner(mesh, zStart, opts) {
     const y = pos.getY(i);
     const z = pos.getZ(i);
     const r = Math.hypot(x, y);
-    if (r >= 0.55) continue;
+    if (r >= 0.80) continue;
     if (z > zStart) continue;
     pos.setZ(i, capZ(r));
   }
@@ -1194,14 +1197,14 @@ async function runBake(gltf) {
   // P7.5: 后极中心区沿 sclera 内表面小帽延伸(消除 slice 平墙)
   extendPosteriorToInner(choroidMesh, -1.60);
   extendPosteriorToInner(retinaMesh, -1.60);
-  extendPosteriorToInner(vitreousMesh, -1.40, { linearEdge: true });
+  extendPosteriorToInner(vitreousMesh, -1.50); // 贴 retina 内表面浅弧(同 CAP)
   // P7.6: 后极三结构归位 - disc 移到鼻侧(真实左眼), fovea/macula 下移贴延伸后的内表面
   const discMesh = meshes.find((m) => m.name === "VH_M_optic_disc_L");
   const foveaMesh = meshes.find((m) => m.name === "VH_M_fovea_L");
   const maculaMesh = meshes.find((m) => m.name === "VH_M_macula_lutea_L");
-  translateMesh(discMesh, 1.014, 0.119, -0.125);   // 颞侧 -> 鼻侧 +3.2mm 偏上 0.8mm, 贴内表面
-  translateMesh(foveaMesh, 0.0, 0.0, -0.258);       // 下移贴中心帽内表面(z -1.89)
-  translateMesh(maculaMesh, 0.025, 0.032, -0.260);  // 跟随 fovea, 贴内表面
+  translateMesh(discMesh, 1.014, 0.119, -0.052);   // 颞侧 -> 鼻侧 +3.2mm 偏上 0.8mm, 贴内表面(z -1.72)
+  translateMesh(foveaMesh, 0.0, 0.0, -0.108);       // 下移贴中心帽内表面(z -1.74)
+  translateMesh(maculaMesh, 0.025, 0.032, -0.125);  // 跟随 fovea, 贴内表面(z -1.735)
   console.log("P7: choroid/retina anterior retracted to ora serrata + attached (0.3/0.2mm)");
 
   // ---- P8: vitreous 前表面贴 lens 后表面(fossa patellaris) ----
