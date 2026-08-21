@@ -294,6 +294,50 @@ function extendPosteriorToInner(mesh, zStart, opts) {
   pos.needsUpdate = true;
 }
 
+/** Expand the corneal edge outward to meet the limbus inner surface. The raw
+ *  cornea sits sunken in the scleral opening: its outer edge (r 0.78-0.82 at
+ *  z 1.21-1.32) trails the limbus inner radius (r=0.865) by 0.3-0.5mm, an
+ *  annular gap visible from the side. Vertices in z 1.20-1.36 with r>0.5 are
+ *  moved radially so the outer-edge contour lands on r=0.865 for z<=1.23,
+ *  tapering to no change at z>=1.35; inner+outer surfaces shift together so
+ *  the 1.17mm wedge thickness is preserved. */
+
+function expandCorneaEdge(corneaMesh) {
+  if (!corneaMesh) return;
+  const pos = corneaMesh.geometry.getAttribute('position');
+  const Z0 = 1.15, Z1 = 1.40, BINS = 50;
+  const rOut = new Array(BINS).fill(0);
+  for (let i = 0; i < pos.count; i += 1) {
+    const z = pos.getZ(i);
+    if (z < Z0 || z > Z1) continue;
+    const r = Math.hypot(pos.getX(i), pos.getY(i));
+    if (r < 0.5) continue;
+    const b = Math.min(BINS - 1, Math.floor(((z - Z0) / (Z1 - Z0)) * BINS));
+    if (r > rOut[b]) rOut[b] = r;
+  }
+  const outAt = (z) => {
+    const f = Math.min(1, Math.max(0, (z - Z0) / (Z1 - Z0)));
+    const b = Math.min(BINS - 1, Math.floor(f * BINS));
+    return rOut[b] || 0.8;
+  };
+  for (let i = 0; i < pos.count; i += 1) {
+    const x = pos.getX(i);
+    const y = pos.getY(i);
+    const z = pos.getZ(i);
+    const r = Math.hypot(x, y);
+    if (r < 0.5) continue;
+    if (z < 1.20 || z > 1.36) continue;
+    const w = z <= 1.26 ? 1 : Math.max(0, 1 - (z - 1.26) / 0.10);
+    if (w <= 0) continue;
+    const delta = (0.865 - outAt(z)) * w;
+    if (delta <= 0) continue;
+    const c = (r + delta) / r;
+    pos.setX(i, x * c);
+    pos.setY(i, y * c);
+  }
+  pos.needsUpdate = true;
+}
+
 /** Phase 4: re-profile a ciliary ring's cross-section. Keeps the outer edge on
  *  the sclera inner surface and remaps the inner edge so the radial band equals
  *  `thicknessFn(z)` (triangle: thick anterior -> 0 posterior).
@@ -1036,6 +1080,7 @@ async function runBake(gltf) {
   const corneaMesh = meshes.find((m) => m.name === "VH_M_cornea_L");
   scaleCorneaDiameter(corneaMesh, 11.5);
   reprofileCornea(corneaMesh, 0.075, 0.176); // 中心 0.5mm → 边缘 1.17mm, 法向
+  expandCorneaEdge(corneaMesh); // 边缘外扩贴角膜缘内缘(消除环形缝隙)
   const aqueousMesh = meshes.find((m) => m.name === "VH_M_aqueous_humor_L");
   flushAqueousToCornea(aqueousMesh, corneaMesh);
   console.log("P3: cornea diameter 11.5mm + normal-thickness rebuild + aqueous flush");
