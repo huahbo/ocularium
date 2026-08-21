@@ -201,6 +201,11 @@ HRA 眼模型（`source/eye-anatomy.glb`，26MB 原始，来自美国 Human Refe
   - vitreous 贴 lens 断言必须用与 `attachVitreousToLens` 相同的 32-bin **插值** `backAt`（离散 bin 值会有插值差伪影，真实 overshoot 为负）；
   - 通用流程：先 probe 实测数值 → 再定容差（.bake 里的 probe.cjs 就是干这个的，用完删）。
 
+## 4.7 几何修复记录（2026-08-17）
+
+- **Choroid 后极削平**：旧 trimPosteriorTube 把 z<-1.70 顶点压成平面（视觉像被砍平）。修复：曲面投影——每顶点沿 sclera 内表面二分滑移（zClip=-1.84），后极成为平滑碗状（平面顶点 3.2% → 0%）。注意 sclInFull 忽略 r<0.3 中心区，后极中心与 sclera 内表面仍有 ~0.8mm 间隙（仅剖开可见，未处理）
+- **睫状体-脉络膜缺口**：HRA 原始睫状体是倾斜环（后缘 z 鼻侧 0.375 / 颞侧 0.57），与 choroid 前缘（0.42）在颞侧形成 ~1mm 环形缺口。修复：新增 alignRingPosterior（per-angle z remap：后缘→0.42，前缘不变，半径贴 sclera 内表面），缺口 1.0mm → 0~0.05mm
+- 复烘焙 + draco 压缩后已推送（b07565f）；浏览器强刷（Ctrl+Shift+R）即可看到效果
 ## 5. 环境备注
 
 - **git push 必须走代理 + openssl 后端**（2026-08-17 踩坑）：本机 schannel 后端报 `SEC_E_NO_CREDENTIALS`（沙箱/系统环境问题），gh CLI 认证可用但 git 直连 SSL 失败。推送用：
